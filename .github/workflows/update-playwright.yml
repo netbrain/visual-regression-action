@@ -17,23 +17,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get latest Playwright version
+      - name: Install skopeo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y skopeo
+
+      - name: Get latest Playwright version and digest
         id: playwright
         run: |
           # Get latest Playwright version from npm
           LATEST_VERSION=$(npm view playwright version)
-          echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "Latest Playwright version: $LATEST_VERSION"
 
-          # Get current version from Dockerfile
-          CURRENT_VERSION=$(grep -oP 'mcr.microsoft.com/playwright:v\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile || echo "none")
-          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current Playwright version: $CURRENT_VERSION"
+          # Get digest for latest version
+          LATEST_DIGEST=$(skopeo inspect docker://mcr.microsoft.com/playwright:v${LATEST_VERSION}-noble | jq -r '.Digest')
+          echo "latest_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
+          echo "Latest digest: $LATEST_DIGEST"
 
-          # Check if update is needed
-          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+          # Get current digest from Dockerfile
+          CURRENT_DIGEST=$(grep -oP 'mcr.microsoft.com/playwright@sha256:\K[a-f0-9]{64}' Dockerfile || echo "none")
+          echo "current_digest=$CURRENT_DIGEST" >> $GITHUB_OUTPUT
+          echo "Current digest: $CURRENT_DIGEST"
+
+          # Get current version from comment
+          CURRENT_VERSION=$(grep -oP '# Playwright v\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile || echo "unknown")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+          # Check if update is needed (compare digests)
+          if [ "$CURRENT_DIGEST" != "${LATEST_DIGEST#sha256:}" ]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
-            echo "Update needed: $CURRENT_VERSION -> $LATEST_VERSION"
+            echo "Update needed: $CURRENT_VERSION ($CURRENT_DIGEST) -> $LATEST_VERSION (${LATEST_DIGEST#sha256:})"
           else
             echo "needs_update=false" >> $GITHUB_OUTPUT
             echo "Already on latest version"
@@ -42,33 +57,40 @@ jobs:
       - name: Update Dockerfile
         if: steps.playwright.outputs.needs_update == 'true'
         run: |
-          LATEST_VERSION="${{ steps.playwright.outputs.latest }}"
+          LATEST_VERSION="${{ steps.playwright.outputs.latest_version }}"
+          LATEST_DIGEST="${{ steps.playwright.outputs.latest_digest }}"
 
-          # Update the FROM line in Dockerfile
-          sed -i "s|FROM mcr.microsoft.com/playwright:.*|FROM mcr.microsoft.com/playwright:v${LATEST_VERSION}-noble|g" Dockerfile
+          # Update the comment and FROM line in Dockerfile
+          sed -i "s|# Playwright v.*|# Playwright v${LATEST_VERSION}-noble|g" Dockerfile
+          sed -i "s|FROM mcr.microsoft.com/playwright@sha256:.*|FROM mcr.microsoft.com/playwright@${LATEST_DIGEST}|g" Dockerfile
 
-          echo "Updated Dockerfile to use Playwright v${LATEST_VERSION}"
+          echo "Updated Dockerfile to use Playwright v${LATEST_VERSION} with digest ${LATEST_DIGEST}"
 
       - name: Create Pull Request
         if: steps.playwright.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update Playwright to v${{ steps.playwright.outputs.latest }}"
-          branch: update-playwright-${{ steps.playwright.outputs.latest }}
+          commit-message: "chore: update Playwright to v${{ steps.playwright.outputs.latest_version }}"
+          branch: update-playwright-${{ steps.playwright.outputs.latest_version }}
           delete-branch: true
-          title: "chore: Update Playwright to v${{ steps.playwright.outputs.latest }}"
+          title: "chore: Update Playwright to v${{ steps.playwright.outputs.latest_version }}"
           body: |
             ## 🎭 Playwright Version Update
 
-            This PR updates the Playwright Docker image to the latest version.
+            This PR updates the Playwright Docker image to the latest version using content-addressed digests for maximum reproducibility.
 
             **Changes:**
-            - Current version: `v${{ steps.playwright.outputs.current }}`
-            - New version: `v${{ steps.playwright.outputs.latest }}`
+            - Current version: `v${{ steps.playwright.outputs.current_version }}`
+            - New version: `v${{ steps.playwright.outputs.latest_version }}`
+
+            **Digests:**
+            - Current: `sha256:${{ steps.playwright.outputs.current_digest }}`
+            - New: `${{ steps.playwright.outputs.latest_digest }}`
 
             **What's included:**
-            - Updated `Dockerfile` to use `mcr.microsoft.com/playwright:v${{ steps.playwright.outputs.latest }}-noble`
+            - Updated `Dockerfile` to use digest-based image reference
+            - Ensures bit-for-bit reproducible builds
 
             **Automated checks:**
             - ✅ Docker image will be rebuilt automatically
@@ -76,7 +98,7 @@ jobs:
             - ✅ All workflows will validate the new version
 
             **Release notes:**
-            See https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest }}
+            See https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest_version }}
 
             ---
             *This PR was automatically created by the Update Playwright Version workflow.*
