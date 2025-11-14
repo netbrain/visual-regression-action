@@ -98,7 +98,7 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/netbrain/visual-regression-action:latest'
+  image: 'Dockerfile'
   env:
     INPUT_MODE: ${{ inputs.mode }}
     INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
