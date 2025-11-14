@@ -277,13 +277,26 @@ describe('Visual Regression Action', () => {
 
   describe('run - screenshot comparison', () => {
     it('should compare screenshots using odiff', async () => {
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
+      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed (indicates base screenshots exist)
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0); // exitCode 0 = success
+        }
+        // Mock identify for dimensions
+        if (cmd === 'identify') {
+          const stdout = options?.listeners?.stdout;
+          if (stdout) {
+            stdout(Buffer.from('1280x720'));
+          }
+        }
+        return Promise.resolve(0);
+      });
+
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshot files (for moving)
-        .mockResolvedValueOnce(['test.png'])  // New screenshot files (for comparison)
-        .mockResolvedValueOnce([]);           // Empty diffs dir initially
+        .mockResolvedValueOnce(['test.png'])  // Base screenshot files in screenshotDir (line 107)
+        .mockResolvedValueOnce(['test.png']); // New screenshot files in screenshotBaseDirAbs (line 147)
 
       await run();
 
@@ -295,12 +308,18 @@ describe('Visual Regression Action', () => {
 
     it('should mark files as different when odiff detects changes', async () => {
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0);
+        }
+        // Mock identify for dimensions
         if (cmd === 'identify') {
           const stdout = options?.listeners?.stdout;
           if (stdout) {
             stdout(Buffer.from('1280x720'));
           }
         }
+        // Mock odiff to detect differences
         if (cmd === 'odiff') {
           return Promise.resolve(1); // Non-zero = differences detected
         }
@@ -310,9 +329,8 @@ describe('Visual Regression Action', () => {
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(['test.png'])  // Base screenshot files
+        .mockResolvedValueOnce(['test.png']); // New screenshot files
 
       await run();
 
@@ -371,6 +389,10 @@ describe('Visual Regression Action', () => {
   describe('run - screenshot cropping', () => {
     it('should crop screenshots to the changed region', async () => {
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0);
+        }
         // Simulate ImageMagick returning bbox
         if (cmd === 'convert' && args?.includes('-format') && args?.includes('%@')) {
           const stdout = options?.listeners?.stdout;
@@ -395,9 +417,8 @@ describe('Visual Regression Action', () => {
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(['test.png'])  // Base screenshots
+        .mockResolvedValueOnce(['test.png']); // New screenshots
 
       await run();
 
@@ -418,6 +439,10 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0);
+        }
         if (cmd === 'convert' && args?.includes('-format') && args?.includes('%@')) {
           const stdout = options?.listeners?.stdout;
           if (stdout) {
@@ -439,9 +464,8 @@ describe('Visual Regression Action', () => {
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(['test.png'])  // Base screenshots
+        .mockResolvedValueOnce(['test.png']); // New screenshots
 
       await run();
 
@@ -538,6 +562,10 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0);
+        }
         if (cmd === 'identify') {
           const stdout = options?.listeners?.stdout;
           if (stdout) {
@@ -553,9 +581,8 @@ describe('Visual Regression Action', () => {
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(['test.png'])  // Base screenshots
+        .mockResolvedValueOnce(['test.png']); // New screenshots
 
       await run();
 
@@ -620,6 +647,10 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        // Mock git show to succeed
+        if (cmd === 'git' && args?.[0] === 'show') {
+          return Promise.resolve(0);
+        }
         if (cmd === 'identify') {
           const stdout = options?.listeners?.stdout;
           if (stdout) {
@@ -635,9 +666,8 @@ describe('Visual Regression Action', () => {
       const fsMock = require('fs');
       fsMock.existsSync.mockReturnValue(true);
       fsMock.promises.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
+        .mockResolvedValueOnce(['test.png'])  // Base screenshots
+        .mockResolvedValueOnce(['test.png']); // New screenshots
 
       await run();
 
