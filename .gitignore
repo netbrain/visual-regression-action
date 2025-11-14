@@ -3,7 +3,16 @@ node_modules/
 .env
 .DS_Store
 screenshots-base/
+screenshots-pr/
+screenshots-diffs/
 test-results/
 playwright-report/
 playwright/.cache/
 example/node_modules/
+coverage/
+*.map
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

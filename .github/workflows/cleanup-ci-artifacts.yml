@@ -1,9 +1,8 @@
 name: Cleanup CI Artifacts Branch
 
 on:
-  # Scheduled cleanup disabled for demo purposes
-  # schedule:
-  #   - cron: '0 0 * * 0'
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly cleanup on Sundays at midnight UTC
   workflow_dispatch:
     inputs:
       retention_days:
