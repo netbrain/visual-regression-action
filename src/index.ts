@@ -6,421 +6,311 @@ import * as path from 'path';
 import { existsSync } from 'fs';
 import { createHash } from 'crypto';
 
-interface ActionInputs {
-  githubToken: string;
+interface CaptureInputs {
+  mode: 'capture';
   playwrightCommand: string;
   workingDirectory: string;
   screenshotDirectory: string;
-  baseBranch: string;
-  commitScreenshots: boolean;
+  artifactName: string;
+  installDeps: boolean;
+}
+
+interface CompareInputs {
+  mode: 'compare';
+  githubToken: string;
+  workingDirectory: string;
+  baseArtifact: string;
+  prArtifact: string;
   postComment: boolean;
   ciBranchName: string;
   diffThreshold: number;
   cropPadding: number;
   cropMinHeight: number;
-  installDeps: boolean;
   failOnChanges: boolean;
-  amendCommit: boolean;
 }
+
+type ActionInputs = CaptureInputs | CompareInputs;
 
 export function getInputs(): ActionInputs {
-  return {
-    githubToken: core.getInput('github-token', { required: true }),
-    playwrightCommand: core.getInput('playwright-command', { required: true }),
-    workingDirectory: core.getInput('working-directory') || '.',
-    screenshotDirectory: core.getInput('screenshot-directory') || 'screenshots',
-    baseBranch: core.getInput('base-branch') || process.env.GITHUB_BASE_REF || 'main',
-    commitScreenshots: core.getBooleanInput('commit-screenshots'),
-    postComment: core.getBooleanInput('post-comment'),
-    ciBranchName: core.getInput('ci-branch-name') || '_ci',
-    diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
-    cropPadding: parseInt(core.getInput('crop-padding')) || 50,
-    cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
-    installDeps: core.getBooleanInput('install-deps'),
-    failOnChanges: core.getBooleanInput('fail-on-changes'),
-    amendCommit: core.getBooleanInput('amend-commit')
-  };
+  const mode = core.getInput('mode', { required: true }) as 'capture' | 'compare';
+
+  if (mode === 'capture') {
+    return {
+      mode: 'capture',
+      playwrightCommand: core.getInput('playwright-command') || 'npm test',
+      workingDirectory: core.getInput('working-directory') || '.',
+      screenshotDirectory: core.getInput('screenshot-directory') || 'screenshots',
+      artifactName: core.getInput('artifact-name') || 'screenshots',
+      installDeps: core.getBooleanInput('install-deps')
+    };
+  } else {
+    return {
+      mode: 'compare',
+      githubToken: core.getInput('github-token', { required: true }),
+      workingDirectory: core.getInput('working-directory') || '.',
+      baseArtifact: core.getInput('base-artifact') || 'screenshots-base',
+      prArtifact: core.getInput('pr-artifact') || 'screenshots-pr',
+      postComment: core.getBooleanInput('post-comment'),
+      ciBranchName: core.getInput('ci-branch-name') || '_ci',
+      diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
+      cropPadding: parseInt(core.getInput('crop-padding')) || 50,
+      cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
+      failOnChanges: core.getBooleanInput('fail-on-changes')
+    };
+  }
 }
 
-export async function run(): Promise<void> {
-  try {
-    const inputs = getInputs();
-    const context = github.context;
+export async function runCapture(inputs: CaptureInputs): Promise<void> {
+  core.startGroup('Capture Mode - Taking screenshots');
 
-    if (!context.payload.pull_request) {
-      core.warning('This action is designed to run on pull requests');
-      return;
+  // Change to working directory
+  process.chdir(inputs.workingDirectory);
+
+  // Install dependencies if requested
+  if (inputs.installDeps) {
+    core.info('Installing dependencies...');
+    await exec.exec('npm', ['ci']);
+  }
+
+  // Run Playwright tests
+  core.info(`Running Playwright tests: ${inputs.playwrightCommand}`);
+  await exec.exec('bash', ['-c', inputs.playwrightCommand]);
+
+  // Verify screenshots exist
+  const screenshotDir = path.resolve(inputs.screenshotDirectory);
+  if (!existsSync(screenshotDir)) {
+    throw new Error(`Screenshot directory not found: ${screenshotDir}`);
+  }
+
+  const files = await fs.readdir(screenshotDir);
+  const pngFiles = files.filter(f => f.endsWith('.png'));
+
+  if (pngFiles.length === 0) {
+    throw new Error(`No .png files found in ${screenshotDir}`);
+  }
+
+  core.info(`Found ${pngFiles.length} screenshot(s): ${pngFiles.join(', ')}`);
+
+  // Upload as artifact (GitHub Actions will handle this via actions/upload-artifact)
+  core.info(`Screenshots ready for upload as artifact: ${inputs.artifactName}`);
+  core.setOutput('screenshot-count', pngFiles.length.toString());
+  core.setOutput('screenshot-directory', screenshotDir);
+
+  core.endGroup();
+}
+
+export async function runCompare(inputs: CompareInputs): Promise<void> {
+  const context = github.context;
+  const octokit = github.getOctokit(inputs.githubToken);
+
+  if (!context.payload.pull_request) {
+    core.warning('Not running in a pull request context - skipping comparison');
+    return;
+  }
+
+  const prNumber = context.payload.pull_request.number;
+
+  core.startGroup('Compare Mode - Analyzing screenshots');
+
+  // Change to working directory
+  process.chdir(inputs.workingDirectory);
+
+  // Download artifacts (GitHub Actions downloads them to specific paths)
+  const baseDir = path.resolve('screenshots-base');
+  const prDir = path.resolve('screenshots-pr');
+  const diffsDir = path.resolve('screenshots-diffs');
+
+  // Create diffs directory
+  await fs.mkdir(diffsDir, { recursive: true });
+
+  // Get list of screenshots from both directories
+  const baseFiles = existsSync(baseDir) ? await fs.readdir(baseDir) : [];
+  const prFiles = existsSync(prDir) ? await fs.readdir(prDir) : [];
+
+  const basePngs = baseFiles.filter(f => f.endsWith('.png'));
+  const prPngs = prFiles.filter(f => f.endsWith('.png'));
+
+  core.info(`Base screenshots: ${basePngs.length}`);
+  core.info(`PR screenshots: ${prPngs.length}`);
+
+  if (prPngs.length === 0) {
+    throw new Error('No screenshots found in PR artifact');
+  }
+
+  let hasDiffs = false;
+  const imagesToUpload: { path: string; hash: string; url: string }[] = [];
+
+  // Compare screenshots
+  for (const file of prPngs) {
+    const baseImg = path.join(baseDir, file);
+    const newImg = path.join(prDir, file);
+    const diffImg = path.join(diffsDir, `${path.parse(file).name}-diff.png`);
+
+    // If base doesn't exist, it's a new screenshot
+    if (!basePngs.includes(file)) {
+      core.info(`New screenshot: ${file}`);
+      continue;
     }
 
-    const prNumber = context.payload.pull_request.number;
-    const headRef = context.payload.pull_request.head.ref;
-    const octokit = github.getOctokit(inputs.githubToken);
+    // Get dimensions
+    const baseDims = await getImageDimensions(baseImg);
+    const newDims = await getImageDimensions(newImg);
 
-    // Configure git safe directory for Docker environment
-    await exec.exec('git', ['config', '--global', '--add', 'safe.directory', '/github/workspace']);
+    // Extend if dimensions don't match
+    if (baseDims.width !== newDims.width || baseDims.height !== newDims.height) {
+      core.info(`Extending canvases for ${file} (${baseDims.width}x${baseDims.height} vs ${newDims.width}x${newDims.height})`);
+      const maxWidth = Math.max(baseDims.width, newDims.width);
+      const maxHeight = Math.max(baseDims.height, newDims.height);
 
-    // Change to working directory
-    process.chdir(inputs.workingDirectory);
-    core.info(`Working directory: ${process.cwd()}`);
-
-    // Step 1: Install dependencies if requested
-    if (inputs.installDeps) {
-      core.startGroup('Installing dependencies');
-      await exec.exec('npm', ['ci']);
-      core.endGroup();
+      await exec.exec('convert', [baseImg, '-gravity', 'northwest', '-extent', `${maxWidth}x${maxHeight}`, baseImg]);
+      await exec.exec('convert', [newImg, '-gravity', 'northwest', '-extent', `${maxWidth}x${maxHeight}`, newImg]);
     }
 
-    // Step 2: Fetch base branch screenshots for comparison
-    core.startGroup('Fetching base branch screenshots');
-    const screenshotBaseDirAbs = path.resolve(inputs.screenshotDirectory);
-    const screenshotsBaseDir = path.join(process.cwd(), 'screenshots-base');
-    await fs.mkdir(screenshotsBaseDir, { recursive: true });
+    // Run odiff
+    const exitCode = await exec.exec('odiff', [
+      baseImg,
+      newImg,
+      diffImg,
+      '--threshold', inputs.diffThreshold.toString()
+    ], { ignoreReturnCode: true });
 
-    // Calculate git path relative to repo root
-    const gitRootRelativePath = inputs.workingDirectory === '.'
-      ? inputs.screenshotDirectory
-      : path.join(inputs.workingDirectory, inputs.screenshotDirectory);
+    if (exitCode === 22) {
+      core.info(`Visual changes detected in ${file}`);
+      hasDiffs = true;
 
-    let hasBase = false;
-    try {
-      // Check if screenshots exist in base branch
-      await exec.exec('git', ['fetch', 'origin', inputs.baseBranch]);
-      const exitCode = await exec.exec('git', [
-        'show',
-        `origin/${inputs.baseBranch}:${gitRootRelativePath}/`,
+      // Generate diff mask for cropping
+      const diffMask = path.join(diffsDir, `${path.parse(file).name}-diff-mask.png`);
+      await exec.exec('odiff', [
+        baseImg,
+        newImg,
+        diffMask,
+        '--diff-mask',
+        '--threshold', inputs.diffThreshold.toString(),
+        '--antialiasing'
       ], { ignoreReturnCode: true });
 
-      if (exitCode === 0) {
-        // Checkout screenshots from base branch
-        await exec.exec('git', [
-          'checkout',
-          `origin/${inputs.baseBranch}`,
-          '--',
-          inputs.screenshotDirectory
-        ], { ignoreReturnCode: true });
-
-        // Move to screenshots-base directory
-        const screenshotDir = path.resolve(inputs.screenshotDirectory);
-        if (existsSync(screenshotDir)) {
-          const files = await fs.readdir(screenshotDir);
-          for (const file of files) {
-            if (file.endsWith('.png')) {
-              await fs.rename(
-                path.join(screenshotDir, file),
-                path.join(screenshotsBaseDir, file)
-              );
-            }
-          }
-          hasBase = true;
-        }
-      }
-
-      // Restore to PR branch state
-      await exec.exec('git', [
-        'checkout',
-        headRef,
-        '--',
-        inputs.screenshotDirectory
-      ], { ignoreReturnCode: true });
-    } catch (error) {
-      core.warning(`Failed to fetch base screenshots: ${error}`);
-    }
-    core.endGroup();
-
-    // Step 3: Run Playwright tests to generate screenshots
-    core.startGroup('Running Playwright tests');
-    await exec.exec('bash', ['-c', inputs.playwrightCommand]);
-    core.endGroup();
-
-    // Step 4: Compare screenshots and generate diffs
-    let hasDiffs = false;
-    const diffsDir = path.join(screenshotBaseDirAbs, 'diffs');
-    await fs.mkdir(diffsDir, { recursive: true });
-
-    const imagesToUpload: { path: string; hash: string; url: string }[] = [];
-
-    if (hasBase) {
-      core.startGroup('Comparing screenshots and generating diffs');
-
-      const screenshotFiles = await fs.readdir(screenshotBaseDirAbs);
-      for (const file of screenshotFiles) {
-        if (!file.endsWith('.png') || file.includes('diff')) continue;
-
-        const newImg = path.join(screenshotBaseDirAbs, file);
-        const baseImg = path.join(screenshotsBaseDir, file);
-
-        if (!existsSync(baseImg)) {
-          core.info(`New screenshot detected: ${file}`);
-          continue;
-        }
-
-        // Get dimensions
-        const baseDims = await getImageDimensions(baseImg);
-        const newDims = await getImageDimensions(newImg);
-
-        // Resize if dimensions differ
-        if (baseDims.width !== newDims.width || baseDims.height !== newDims.height) {
-          core.info(`Dimension mismatch for ${file}: base=${baseDims.width}x${baseDims.height} new=${newDims.width}x${newDims.height}`);
-
-          const maxW = Math.max(baseDims.width, newDims.width);
-          const maxH = Math.max(baseDims.height, newDims.height);
-
-          await exec.exec('mogrify', [
-            '-background', 'white',
-            '-gravity', 'NorthWest',
-            '-extent', `${maxW}x${maxH}`,
-            baseImg
-          ]);
-          await exec.exec('mogrify', [
-            '-background', 'white',
-            '-gravity', 'NorthWest',
-            '-extent', `${maxW}x${maxH}`,
-            newImg
-          ]);
-        }
-
-        // Generate diff with odiff
-        const diffImg = path.join(diffsDir, `${path.parse(file).name}-diff.png`);
-        const exitCode = await exec.exec('odiff', [
-          baseImg,
-          newImg,
-          diffImg,
-          '--threshold', inputs.diffThreshold.toString()
-        ], { ignoreReturnCode: true });
-
-        if (exitCode === 22) {
-          core.info(`Visual changes detected in ${file}`);
-          hasDiffs = true;
-
-          // Get diff mask and crop regions
-          const diffMask = path.join(diffsDir, `${path.parse(file).name}-diff-mask.png`);
-          await exec.exec('odiff', [
-            baseImg,
-            newImg,
-            diffMask,
-            '--diff-mask',
-            '--threshold', inputs.diffThreshold.toString(),
-            '--antialiasing'
-          ], { ignoreReturnCode: true });
-
-          // Get bounding box of changes
-          let output = '';
-          await exec.exec('convert', [
-            diffMask,
-            '-alpha', 'extract',
-            '-trim',
-            '-format', '%wx%h+%X+%Y',
-            'info:'
-          ], {
-            listeners: {
-              stdout: (data: Buffer) => { output += data.toString(); }
-            }
-          });
-
-          const bbox = output.trim();
-          core.info(`Bbox output: ${bbox}`);
-          const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
-          core.info(`Match result: ${match ? 'MATCHED' : 'NO MATCH'}`);
-
-          if (match) {
-            const [, width, height, x, y] = match.map(Number);
-            const imgDims = await getImageDimensions(newImg);
-
-            // Calculate crop with padding
-            const yPad = Math.max(0, y - inputs.cropPadding);
-            let heightWithPadding = height + inputs.cropPadding * 2;
-            heightWithPadding = Math.max(heightWithPadding, inputs.cropMinHeight);
-
-            // Ensure we don't exceed bounds
-            const maxY = imgDims.height - heightWithPadding;
-            const finalY = Math.min(yPad, Math.max(0, maxY));
-            const finalHeight = Math.min(heightWithPadding, imgDims.height - finalY);
-
-            const cropSpec = `${imgDims.width}x${finalHeight}+0+${finalY}`;
-
-            // Crop all three images
-            const baseCrop = path.join(diffsDir, `${path.parse(file).name}-base-crop.png`);
-            const diffCrop = path.join(diffsDir, `${path.parse(file).name}-diff-crop.png`);
-            const newCrop = path.join(diffsDir, `${path.parse(file).name}-new-crop.png`);
-            const combined = path.join(diffsDir, `${path.parse(file).name}-combined.png`);
-
-            await exec.exec('convert', [baseImg, '-crop', cropSpec, '+repage', baseCrop]);
-            await exec.exec('convert', [diffImg, '-crop', cropSpec, '+repage', diffCrop]);
-            await exec.exec('convert', [newImg, '-crop', cropSpec, '+repage', newCrop]);
-
-            // Combine horizontally
-            await exec.exec('convert', [baseCrop, diffCrop, newCrop, '+append', combined]);
-
-            core.info(`Created combined image: ${combined}`);
-          }
-
-          await fs.unlink(diffMask).catch(() => {});
-        } else if (exitCode === 0) {
-          core.info(`No visual changes in ${file}`);
-          await fs.unlink(diffImg).catch(() => {});
-        }
-      }
-      core.endGroup();
-    }
-
-    // Step 5: Check for screenshot changes
-    let hasChanges = false;
-    try {
-      let gitOutput = '';
-      await exec.exec('git', ['status', '--porcelain', inputs.screenshotDirectory], {
+      // Get bounding box
+      let bboxOutput = '';
+      await exec.exec('convert', [
+        diffMask,
+        '-alpha', 'extract',
+        '-trim',
+        '-format', '%wx%h+%X+%Y',
+        'info:'
+      ], {
         listeners: {
-          stdout: (data: Buffer) => { gitOutput += data.toString(); }
+          stdout: (data: Buffer) => { bboxOutput += data.toString(); }
         }
       });
-      hasChanges = gitOutput.trim().length > 0;
-    } catch (error) {
-      core.warning(`Failed to check for changes: ${error}`);
-    }
 
-    // Step 6: Post PR comment with diffs
-    let commentPosted = false;
-    if (hasDiffs && inputs.postComment) {
-      core.startGroup('Generating and posting PR comment');
+      core.info(`Bbox output: ${bboxOutput}`);
 
-      // Build comment markdown
-      let comment = '## 📸 Visual Regression Changes Detected\n\n';
+      // Parse bbox (handle double plus signs like 1280x253++0++0)
+      const bboxMatch = bboxOutput.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
 
-      const diffFiles = await fs.readdir(diffsDir);
-      const combinedFiles = diffFiles.filter(f => f.endsWith('-combined.png'));
+      if (bboxMatch) {
+        core.info(`Match result: MATCHED`);
+        const cropWidth = parseInt(bboxMatch[1]);
+        const cropHeight = parseInt(bboxMatch[2]);
+        const cropX = parseInt(bboxMatch[3]);
+        const cropY = parseInt(bboxMatch[4]);
 
-      for (const file of combinedFiles) {
-        const basename = file.replace('-combined.png', '');
-        const combinedPath = path.join(diffsDir, file);
+        // Calculate crop region with padding
+        const imgDims = await getImageDimensions(newImg);
+        const finalHeight = Math.max(cropHeight + (inputs.cropPadding * 2), inputs.cropMinHeight);
+        const finalY = Math.max(0, cropY - inputs.cropPadding);
 
-        // Get image URL (upload to CI branch)
-        const hash = await getFileHash(combinedPath);
+        const cropGeometry = `${imgDims.width}x${finalHeight}+0+${finalY}`;
+        core.info(`Cropping to: ${cropGeometry}`);
+
+        // Crop all three images
+        const baseCrop = path.join(diffsDir, `${path.parse(file).name}-base-crop.png`);
+        const diffCrop = path.join(diffsDir, `${path.parse(file).name}-diff-crop.png`);
+        const newCrop = path.join(diffsDir, `${path.parse(file).name}-new-crop.png`);
+
+        await exec.exec('convert', [baseImg, '-crop', cropGeometry, '+repage', baseCrop]);
+        await exec.exec('convert', [diffImg, '-crop', cropGeometry, '+repage', diffCrop]);
+        await exec.exec('convert', [newImg, '-crop', cropGeometry, '+repage', newCrop]);
+
+        // Combine horizontally
+        const combinedImg = path.join(diffsDir, `${path.parse(file).name}-combined.png`);
+        await exec.exec('convert', [baseCrop, diffCrop, newCrop, '+append', combinedImg]);
+
+        core.info(`Created combined image: ${combinedImg}`);
+
+        // Prepare for upload to _ci branch
+        const hash = await getFileHash(combinedImg);
         const filename = `${hash}.png`;
         const imageUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${inputs.ciBranchName}/${filename}`;
 
         imagesToUpload.push({
-          path: combinedPath,
+          path: combinedImg,
           hash: filename,
           url: imageUrl
         });
-
-        comment += `<details>\n`;
-        comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-        comment += `<div align="center">\n`;
-        comment += `  <table>\n`;
-        comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
-        comment += `  </table>\n`;
-        comment += `  <img src="${imageUrl}" alt="${basename} comparison" width="100%">\n`;
-        comment += `</div>\n\n`;
-        comment += `</details>\n\n`;
       }
-
-      comment += `---\n\n`;
-      comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height). Full-page screenshots are available in \`${inputs.screenshotDirectory}/\` directory.*`;
-
-      // Upload images to CI branch
-      if (imagesToUpload.length > 0) {
-        await uploadToCiBranch(inputs, imagesToUpload, prNumber);
-
-        // Wait for CDN propagation
-        core.info('Waiting 5 seconds for CDN propagation...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      // Post comment
-      try {
-        await octokit.rest.issues.createComment({
-          owner: context.repo.owner,
-          repo: context.repo.repo,
-          issue_number: prNumber,
-          body: comment
-        });
-        commentPosted = true;
-        core.info('PR comment posted successfully');
-      } catch (error) {
-        core.warning(`Failed to post PR comment: ${error}`);
-      }
-
-      core.endGroup();
     }
-
-    // Step 7: Commit screenshots if requested
-    let screenshotsCommitted = false;
-    if (hasChanges && inputs.commitScreenshots) {
-      core.startGroup('Committing screenshots');
-
-      try {
-        // Remove diffs directory
-        await exec.exec('rm', ['-rf', path.join(inputs.screenshotDirectory, 'diffs')]);
-
-        // Configure git
-        await exec.exec('git', ['config', '--local', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
-        await exec.exec('git', ['config', '--local', 'user.name', 'github-actions[bot]']);
-
-        // Stash screenshots
-        await exec.exec('git', ['stash', 'push', '-u', inputs.screenshotDirectory]);
-
-        // Fetch and rebase
-        await exec.exec('git', ['fetch', 'origin', headRef]);
-        await exec.exec('git', ['rebase', `origin/${headRef}`]);
-
-        // Restore screenshots
-        await exec.exec('git', ['stash', 'pop']);
-
-        // Stage screenshots
-        await exec.exec('git', ['add', inputs.screenshotDirectory]);
-
-        if (inputs.amendCommit) {
-          // Get original commit info
-          let originalMsg = '';
-          let originalAuthor = '';
-
-          await exec.exec('git', ['log', '-1', '--pretty=%B'], {
-            listeners: {
-              stdout: (data: Buffer) => { originalMsg += data.toString(); }
-            }
-          });
-
-          await exec.exec('git', ['log', '-1', '--pretty=format:%an <%ae>'], {
-            listeners: {
-              stdout: (data: Buffer) => { originalAuthor += data.toString(); }
-            }
-          });
-
-          // Amend commit
-          await exec.exec('git', ['commit', '--amend', '--no-edit', `--author=${originalAuthor}`]);
-        } else {
-          // Create new commit
-          await exec.exec('git', ['commit', '-m', 'Update visual regression screenshots']);
-        }
-
-        // Push
-        await exec.exec('git', ['push', '--force-with-lease', 'origin', headRef]);
-
-        screenshotsCommitted = true;
-        core.info('Screenshots committed successfully');
-      } catch (error) {
-        core.warning(`Failed to commit screenshots: ${error}`);
-      }
-
-      core.endGroup();
-    }
-
-    // Set outputs
-    core.setOutput('has-changes', hasChanges.toString());
-    core.setOutput('has-diffs', hasDiffs.toString());
-    core.setOutput('screenshots-committed', screenshotsCommitted.toString());
-    core.setOutput('comment-posted', commentPosted.toString());
-
-    // Fail if requested
-    if (inputs.failOnChanges && hasDiffs) {
-      core.setFailed('Visual changes detected');
-    } else {
-      core.info('✅ Visual regression testing complete');
-    }
-
-  } catch (error) {
-    core.setFailed(`Action failed: ${error}`);
   }
+
+  core.setOutput('has-diffs', hasDiffs.toString());
+  core.endGroup();
+
+  // Post PR comment if requested
+  let commentPosted = false;
+  if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
+    core.startGroup('Posting PR comment');
+
+    // Upload images to CI branch
+    await uploadToCiBranch(inputs, imagesToUpload, prNumber);
+
+    // Wait for CDN propagation
+    core.info('Waiting 5 seconds for CDN propagation...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // Build comment
+    let comment = `## 📸 Visual Regression Changes Detected\n\n`;
+
+    for (const img of imagesToUpload) {
+      const basename = path.basename(img.path, '-combined.png');
+      comment += `<details>\n`;
+      comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+      comment += `<div align="center">\n`;
+      comment += `  <table>\n`;
+      comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
+      comment += `  </table>\n`;
+      comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
+      comment += `</div>\n\n`;
+      comment += `</details>\n\n`;
+    }
+
+    comment += `---\n\n`;
+    comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
+
+    // Post comment
+    try {
+      await octokit.rest.issues.createComment({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        issue_number: prNumber,
+        body: comment
+      });
+      commentPosted = true;
+      core.info('PR comment posted successfully');
+    } catch (error) {
+      core.warning(`Failed to post PR comment: ${error}`);
+    }
+
+    core.endGroup();
+  }
+
+  core.setOutput('comment-posted', commentPosted.toString());
+
+  // Fail if requested
+  if (inputs.failOnChanges && hasDiffs) {
+    core.setFailed('Visual changes detected');
+  }
+
+  core.info('✅ Visual regression comparison complete');
 }
 
 export async function getImageDimensions(imagePath: string): Promise<{ width: number; height: number }> {
@@ -433,7 +323,7 @@ export async function getImageDimensions(imagePath: string): Promise<{ width: nu
 
   const match = output.match(/(\d+)x(\d+)/);
   if (!match) {
-    throw new Error(`Failed to get dimensions for ${imagePath}`);
+    throw new Error(`Failed to parse image dimensions from: ${output}`);
   }
 
   return {
@@ -448,7 +338,7 @@ async function getFileHash(filePath: string): Promise<string> {
 }
 
 async function uploadToCiBranch(
-  inputs: ActionInputs,
+  inputs: CompareInputs,
   images: { path: string; hash: string; url: string }[],
   prNumber: number
 ): Promise<void> {
@@ -492,12 +382,12 @@ This branch stores content-addressed CI artifacts (visual regression diff images
 
 ## Structure
 - All images stored at root level
-- Filenames: \`<sha256-hash>.<extension>\` (e.g., \`a3dbc947...png\`)
+- Filenames: \`<sha256-hash>.png\` (e.g., \`a3dbc947...png\`)
 - Automatic deduplication via content addressing
 
 ## Retention
-- Retention policy managed by cleanup workflow
-- See \`.github/workflows/cleanup-ci-artifacts.yml\` for details
+- Images are stored indefinitely (no automatic cleanup)
+- Manual cleanup can be performed if needed
 `;
       await fs.writeFile(path.join(worktreeDir, 'README.md'), readme);
 
@@ -527,6 +417,20 @@ This branch stores content-addressed CI artifacts (visual regression diff images
     // Clean up worktree and restore original directory
     process.chdir(originalCwd);
     await exec.exec('git', ['worktree', 'remove', worktreeDir, '--force'], { ignoreReturnCode: true });
+  }
+}
+
+export async function run(): Promise<void> {
+  try {
+    const inputs = getInputs();
+
+    if (inputs.mode === 'capture') {
+      await runCapture(inputs);
+    } else {
+      await runCompare(inputs);
+    }
+  } catch (error) {
+    core.setFailed(`Action failed: ${error}`);
   }
 }
 

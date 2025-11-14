@@ -4,7 +4,7 @@ Catch visual bugs in pull requests with automated screenshot comparison and side
 
 ## What It Does
 
-This GitHub Action runs your Playwright tests, compares screenshots against your base branch, and posts a PR comment showing what changed. No more "looks good to me" reviews when the button moved 5 pixels or the color shifted slightly.
+This GitHub Action captures screenshots from your Playwright tests, compares them between your base branch and PR, and posts a comment showing what changed. No more "looks good to me" reviews when the button moved 5 pixels or the color shifted slightly.
 
 [See it in action →](https://github.com/netbrain/visual-regression-action/pull/3)
 
@@ -38,66 +38,106 @@ permissions:
   pull-requests: write
 
 jobs:
-  visual-regression:
+  capture:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [base, pr]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
+          ref: ${{ matrix.branch == 'base' && github.event.pull_request.base.ref || github.head_ref }}
 
-      - uses: netbrain/visual-regression-action@v1
+      - uses: netbrain/visual-regression-action@v2
         with:
+          mode: capture
+          artifact-name: screenshots-${{ matrix.branch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.branch }}
+          path: screenshots/
+
+  compare:
+    runs-on: ubuntu-latest
+    needs: capture
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots-base
+          path: screenshots-base
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots-pr
+          path: screenshots-pr
+
+      - uses: netbrain/visual-regression-action@v2
+        with:
+          mode: compare
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-**3. Open a PR** - The action will comment with any visual changes.
+**3. Open a PR** - The action will comment with visual diffs.
 
 ## Key Features
 
-- **Zero config** - Works immediately with sensible defaults
+- **Minimal config** - Works with sensible defaults, just specify `mode`
 - **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
 - **Smart cropping** - Shows only the changed regions, not entire pages
-- **Clean storage** - Stores diff images on dedicated `_ci` branch with content-addressed filenames
-- **Auto-commits** - Updates screenshots in your PR automatically
+- **Clean storage** - Uses GitHub Actions artifacts for screenshots, stores diff images on `_ci` branch
+- **No repo bloat** - Screenshots aren't committed to your repository
 
 ## Configuration
 
-### Common Options
+The action operates in two modes: **capture** and **compare**.
+
+### Capture Mode Options
+
+Use in the matrix capture job to take screenshots:
 
 ```yaml
-- uses: netbrain/visual-regression-action@v1
+- uses: netbrain/visual-regression-action@v2
   with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    playwright-command: npm test                    # Default: 'npm test'
-    screenshot-directory: screenshots               # Default
-    working-directory: .                           # Default
-    commit-screenshots: true                       # Auto-commit updated screenshots
-    post-comment: true                             # Post PR comment with diffs
-    fail-on-changes: false                         # Fail CI if changes detected
+    mode: capture                              # Required: 'capture' or 'compare'
+    playwright-command: npm test               # Default: 'npm test'
+    screenshot-directory: screenshots          # Default: 'screenshots'
+    working-directory: .                       # Default: '.'
+    artifact-name: screenshots                 # Default: 'screenshots'
+    install-deps: true                         # Default: true
 ```
 
-### Advanced Options
+### Compare Mode Options
+
+Use in the compare job to generate diffs and post PR comments:
 
 ```yaml
-    diff-threshold: '0.1'          # Pixel difference tolerance (0.0-1.0)
-    crop-padding: '50'             # Padding around changed region (px)
-    crop-min-height: '300'         # Minimum crop height (px)
-    ci-branch-name: '_ci'          # Branch name for artifacts
-    base-branch: main              # Branch to compare against
-    install-deps: true             # Run npm ci before tests
-    amend-commit: true             # Amend vs new commit for screenshots
+- uses: netbrain/visual-regression-action@v2
+  with:
+    mode: compare                              # Required: 'capture' or 'compare'
+    github-token: ${{ secrets.GITHUB_TOKEN }}  # Required for compare mode
+    base-artifact: screenshots-base            # Default: 'screenshots-base'
+    pr-artifact: screenshots-pr                # Default: 'screenshots-pr'
+    post-comment: true                         # Default: true
+    fail-on-changes: false                     # Default: false
+    diff-threshold: '0.1'                      # Default: 0.1 (10% tolerance)
+    crop-padding: '50'                         # Default: 50px
+    crop-min-height: '300'                     # Default: 300px
+    ci-branch-name: '_ci'                      # Default: '_ci'
+    working-directory: .                       # Default: '.'
 ```
 
 ## How It Works
 
-1. **Captures screenshots** - Runs your Playwright tests
-2. **Fetches baseline** - Gets screenshots from the base branch
-3. **Generates diffs** - Uses odiff to highlight pixel differences
-4. **Crops intelligently** - Shows only changed regions with context
-5. **Uploads artifacts** - Stores diff images on `_ci` branch (content-addressed)
-6. **Comments on PR** - Posts expandable comparison gallery
-7. **Commits screenshots** - Updates your PR with new screenshots
+1. **Parallel capture** - Matrix job runs Playwright tests on both base and PR branches
+2. **Upload artifacts** - Screenshots uploaded as GitHub Actions artifacts
+3. **Download & compare** - Compare job downloads both artifact sets
+4. **Generate diffs** - Uses odiff to highlight pixel differences
+5. **Smart cropping** - Shows only changed regions with context padding
+6. **Store diffs** - Uploads diff images to `_ci` branch (content-addressed, SHA256 hashed)
+7. **Comment on PR** - Posts expandable comparison gallery with side-by-side views
 
 ## Example PR Comment
 
@@ -123,60 +163,75 @@ jobs:
 ### Fail CI on Visual Changes
 
 ```yaml
-- uses: netbrain/visual-regression-action@v1
+# In the compare job
+- uses: netbrain/visual-regression-action@v2
   with:
+    mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
     fail-on-changes: true
 ```
 
-### Comment Only (No Auto-Commit)
+### Custom Playwright Command & Directory
 
 ```yaml
-- uses: netbrain/visual-regression-action@v1
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    commit-screenshots: false
-```
-
-### Custom Directory and Build Step
-
-```yaml
+# In the capture job
 - name: Build site
   run: npm run build
 
-- uses: netbrain/visual-regression-action@v1
+- uses: netbrain/visual-regression-action@v2
   with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
+    mode: capture
     playwright-command: npm run test:visual
     working-directory: frontend
     screenshot-directory: e2e/screenshots
     install-deps: false
 ```
 
-## Outputs
-
-Use these in subsequent workflow steps:
+### Skip PR Comments
 
 ```yaml
-- name: Visual Regression
-  id: vr
-  uses: netbrain/visual-regression-action@v1
+# In the compare job
+- uses: netbrain/visual-regression-action@v2
   with:
+    mode: compare
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    post-comment: false
+```
+
+## Outputs
+
+### Capture Mode Outputs
+
+- `screenshot-count` - Number of PNG files found
+- `screenshot-directory` - Absolute path to screenshot directory
+
+### Compare Mode Outputs
+
+- `has-diffs` - Whether visual differences were detected (`true`/`false`)
+- `comment-posted` - Whether PR comment was posted (`true`/`false`)
+
+Example usage:
+
+```yaml
+- name: Compare screenshots
+  id: compare
+  uses: netbrain/visual-regression-action@v2
+  with:
+    mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
 
 - name: Check results
   run: |
-    echo "Changes: ${{ steps.vr.outputs.has-changes }}"
-    echo "Diffs: ${{ steps.vr.outputs.has-diffs }}"
-    echo "Committed: ${{ steps.vr.outputs.screenshots-committed }}"
-    echo "Commented: ${{ steps.vr.outputs.comment-posted }}"
+    echo "Has diffs: ${{ steps.compare.outputs.has-diffs }}"
+    echo "Comment posted: ${{ steps.compare.outputs.comment-posted }}"
 ```
 
 ## Requirements
 
-- Playwright tests that save screenshots
-- `contents: write` and `pull-requests: write` permissions
-- Node.js project with `package.json`
+- Playwright tests that save screenshots to a directory
+- `contents: write` permission (for updating `_ci` branch with diff images)
+- `pull-requests: write` permission (for posting PR comments)
+- Node.js project with `package.json` (for capture mode)
 
 ## License
 
