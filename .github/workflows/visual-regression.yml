@@ -19,26 +19,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: example/package-lock.json
-
-      - name: Install example dependencies
-        working-directory: example
-        run: npm ci
-
-      - name: Install Playwright browsers
-        working-directory: example
-        run: npx playwright install --with-deps chromium
-
-      - name: Build the action
-        run: |
-          npm ci
-          npm run build
-
       - name: Run visual regression action
         uses: ./
         with:
@@ -54,6 +34,6 @@ jobs:
           diff-threshold: '0.1'
           crop-padding: '50'
           crop-min-height: '300'
-          install-deps: false
+          install-deps: true
           fail-on-changes: false
           amend-commit: true
