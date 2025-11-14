@@ -13,12 +13,11 @@ interface CompareInputs {
     baseArtifact: string;
     prArtifact: string;
     postComment: boolean;
-    ciBranchName: string;
     diffThreshold: number;
     cropPadding: number;
     cropMinHeight: number;
     failOnChanges: boolean;
-    imgbbApiKey?: string;
+    imgbbApiKey: string;
 }
 type ActionInputs = CaptureInputs | CompareInputs;
 export declare function getInputs(): ActionInputs;

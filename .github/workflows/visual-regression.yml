@@ -5,7 +5,6 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
   pull-requests: write
 
 jobs:
@@ -44,9 +43,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download base screenshots
         uses: actions/download-artifact@v6
@@ -72,4 +68,4 @@ jobs:
           diff-threshold: '0.1'
           crop-padding: '50'
           crop-min-height: '300'
-          ci-branch-name: _ci
+          imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}

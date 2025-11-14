@@ -67,13 +67,13 @@ describe('Visual Regression Action', () => {
     });
 
     it('should parse compare mode inputs', () => {
-      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
+      (mockCore.getInput as jest.Mock).mockImplementation((name: string, options?: any) => {
         const inputs: Record<string, string> = {
           'mode': 'compare',
           'github-token': 'test-token',
           'base-artifact': 'screenshots-base',
           'pr-artifact': 'screenshots-pr',
-          'ci-branch-name': '_ci',
+          'imgbb-api-key': 'test-imgbb-key',
           'diff-threshold': '0.1',
           'crop-padding': '50',
           'crop-min-height': '300'
@@ -92,7 +92,7 @@ describe('Visual Regression Action', () => {
         expect(inputs.githubToken).toBe('test-token');
         expect(inputs.baseArtifact).toBe('screenshots-base');
         expect(inputs.prArtifact).toBe('screenshots-pr');
-        expect(inputs.ciBranchName).toBe('_ci');
+        expect(inputs.imgbbApiKey).toBe('test-imgbb-key');
         expect(inputs.diffThreshold).toBe(0.1);
         expect(inputs.cropPadding).toBe(50);
         expect(inputs.cropMinHeight).toBe(300);
@@ -275,7 +275,7 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        ciBranchName: '_ci',
+        imgbbApiKey: 'test-imgbb-key',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -295,7 +295,7 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        ciBranchName: '_ci',
+        imgbbApiKey: 'test-imgbb-key',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -333,7 +333,7 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        ciBranchName: '_ci',
+        imgbbApiKey: 'test-imgbb-key',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -371,7 +371,7 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: false,
-        ciBranchName: '_ci',
+        imgbbApiKey: 'test-imgbb-key',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,

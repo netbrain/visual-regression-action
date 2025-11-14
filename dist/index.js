@@ -65,6 +65,7 @@ function getInputs() {
         };
     }
     else {
+        const imgbbApiKey = core.getInput('imgbb-api-key', { required: true });
         return {
             mode: 'compare',
             githubToken: core.getInput('github-token', { required: true }),
@@ -72,12 +73,11 @@ function getInputs() {
             baseArtifact: core.getInput('base-artifact') || 'screenshots-base',
             prArtifact: core.getInput('pr-artifact') || 'screenshots-pr',
             postComment: core.getBooleanInput('post-comment'),
-            ciBranchName: core.getInput('ci-branch-name') || '_ci',
             diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
             cropPadding: parseInt(core.getInput('crop-padding')) || 50,
             cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
             failOnChanges: core.getBooleanInput('fail-on-changes'),
-            imgbbApiKey: core.getInput('imgbb-api-key') || undefined
+            imgbbApiKey
         };
     }
 }
@@ -219,14 +219,13 @@ async function runCompare(inputs) {
                 const combinedImg = path.join(diffsDir, `${path.parse(file).name}-combined.png`);
                 await exec.exec('convert', [baseCrop, diffCrop, newCrop, '+append', combinedImg]);
                 core.info(`Created combined image: ${combinedImg}`);
-                // Prepare for upload to _ci branch
+                // Prepare for upload to ImgBB (URL will be set after upload)
                 const hash = await getFileHash(combinedImg);
                 const filename = `${hash}.png`;
-                const imageUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${inputs.ciBranchName}/${filename}`;
                 imagesToUpload.push({
                     path: combinedImg,
                     hash: filename,
-                    url: imageUrl
+                    url: '' // Will be populated by ImgBB upload
                 });
             }
         }
@@ -237,18 +236,9 @@ async function runCompare(inputs) {
     let commentPosted = false;
     if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
         core.startGroup('Posting PR comment');
-        // Upload images - use ImgBB if API key provided, otherwise _ci branch
-        if (inputs.imgbbApiKey) {
-            core.info('Using ImgBB for image hosting (private repo support)');
-            await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload);
-        }
-        else {
-            core.info('Using _ci branch for image hosting');
-            await uploadToCiBranch(inputs, imagesToUpload, prNumber);
-            // Wait for CDN propagation (only needed for GitHub raw URLs)
-            core.info('Waiting 5 seconds for CDN propagation...');
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+        // Upload images to ImgBB
+        core.info('Uploading diff images to ImgBB...');
+        await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload);
         // Build comment
         let comment = `## 📸 Visual Regression Changes Detected\n\n`;
         for (const img of imagesToUpload) {
@@ -338,78 +328,6 @@ async function uploadToImgBB(apiKey, images) {
             core.warning(`Failed to upload ${img.path} to ImgBB: ${error}`);
             throw error;
         }
-    }
-}
-async function uploadToCiBranch(inputs, images, prNumber) {
-    core.info(`Uploading ${images.length} images to ${inputs.ciBranchName} branch...`);
-    const worktreeDir = `/tmp/_ci_worktree_${Date.now()}`;
-    const originalCwd = process.cwd();
-    try {
-        // Configure git safe.directory for the workspace
-        await exec.exec('git', ['config', '--global', '--add', 'safe.directory', originalCwd]);
-        // Check if CI branch exists by capturing output
-        let lsRemoteOutput = '';
-        await exec.exec('git', [
-            'ls-remote',
-            '--heads',
-            'origin',
-            inputs.ciBranchName
-        ], {
-            listeners: {
-                stdout: (data) => { lsRemoteOutput += data.toString(); }
-            },
-            ignoreReturnCode: true
-        });
-        const branchExists = lsRemoteOutput.trim().length > 0;
-        if (branchExists) {
-            // Fetch existing branch
-            await exec.exec('git', ['fetch', 'origin', `${inputs.ciBranchName}:${inputs.ciBranchName}`, '--depth=1']);
-            await exec.exec('git', ['worktree', 'add', worktreeDir, inputs.ciBranchName]);
-        }
-        else {
-            // Create new orphan branch
-            await exec.exec('git', ['worktree', 'add', '--detach', worktreeDir]);
-            process.chdir(worktreeDir);
-            await exec.exec('git', ['checkout', '--orphan', inputs.ciBranchName]);
-            await exec.exec('git', ['rm', '-rf', '.'], { ignoreReturnCode: true });
-            // Create README
-            const readme = `# CI Artifacts Storage
-
-This branch stores content-addressed CI artifacts (visual regression diff images).
-
-## Structure
-- All images stored at root level
-- Filenames: \`<sha256-hash>.png\` (e.g., \`a3dbc947...png\`)
-- Automatic deduplication via content addressing
-
-## Retention
-- Images are stored indefinitely (no automatic cleanup)
-- Manual cleanup can be performed if needed
-`;
-            await fs.writeFile(path.join(worktreeDir, 'README.md'), readme);
-            await exec.exec('git', ['add', 'README.md']);
-            await exec.exec('git', ['config', 'user.name', 'github-actions[bot]']);
-            await exec.exec('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
-            await exec.exec('git', ['commit', '-m', 'Initialize _ci branch for artifacts']);
-            await exec.exec('git', ['push', 'origin', inputs.ciBranchName]);
-        }
-        // Copy images to worktree
-        process.chdir(worktreeDir);
-        await exec.exec('git', ['config', 'user.name', 'github-actions[bot]']);
-        await exec.exec('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
-        for (const img of images) {
-            await fs.copyFile(img.path, path.join(worktreeDir, img.hash));
-            await exec.exec('git', ['add', img.hash]);
-        }
-        // Commit and push
-        await exec.exec('git', ['commit', '-m', `Add ${images.length} artifacts for PR ${prNumber}`]);
-        await exec.exec('git', ['push', 'origin', inputs.ciBranchName]);
-        core.info(`✅ Uploaded ${images.length} images in single commit`);
-    }
-    finally {
-        // Clean up worktree and restore original directory
-        process.chdir(originalCwd);
-        await exec.exec('git', ['worktree', 'remove', worktreeDir, '--force'], { ignoreReturnCode: true });
     }
 }
 async function run() {

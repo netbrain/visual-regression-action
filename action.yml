@@ -49,11 +49,6 @@ inputs:
     required: false
     default: 'true'
 
-  ci-branch-name:
-    description: 'Name of CI artifacts branch for storing diff images'
-    required: false
-    default: '_ci'
-
   diff-threshold:
     description: 'Odiff threshold for pixel differences (0.0-1.0, default 0.1 = 10%)'
     required: false
@@ -80,8 +75,9 @@ inputs:
     default: 'false'
 
   imgbb-api-key:
-    description: 'ImgBB API key for image hosting (for private repos where _ci branch is not accessible)'
+    description: 'ImgBB API key for image hosting (required for compare mode)'
     required: false
+    default: ''
 
 outputs:
   screenshot-count:
@@ -108,7 +104,6 @@ runs:
     INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
     INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
     INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-    INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
     INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
     INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
     INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}

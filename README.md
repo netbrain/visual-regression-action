@@ -34,7 +34,6 @@ name: Visual Regression
 on: pull_request
 
 permissions:
-  contents: write
   pull-requests: write
 
 jobs:
@@ -78,17 +77,21 @@ jobs:
         with:
           mode: compare
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
 ```
 
-**3. Open a PR** - The action will comment with visual diffs.
+**3. Get an ImgBB API key** (free at https://api.imgbb.com/) and add it as a repository secret named `IMGBB_API_KEY`.
+
+**4. Open a PR** - The action will comment with visual diffs.
 
 ## Key Features
 
 - **Minimal config** - Works with sensible defaults, just specify `mode`
 - **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
 - **Smart cropping** - Shows only the changed regions, not entire pages
-- **Clean storage** - Uses GitHub Actions artifacts for screenshots, stores diff images on `_ci` branch
+- **Clean storage** - Uses GitHub Actions artifacts for screenshots, ImgBB for diff images
 - **No repo bloat** - Screenshots aren't committed to your repository
+- **Auto-cleanup** - Diff images automatically expire after 30 days
 
 ## Configuration
 
@@ -118,6 +121,7 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare                              # Required: 'capture' or 'compare'
     github-token: ${{ secrets.GITHUB_TOKEN }}  # Required for compare mode
+    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}# Required for compare mode
     base-artifact: screenshots-base            # Default: 'screenshots-base'
     pr-artifact: screenshots-pr                # Default: 'screenshots-pr'
     post-comment: true                         # Default: true
@@ -125,7 +129,6 @@ Use in the compare job to generate diffs and post PR comments:
     diff-threshold: '0.1'                      # Default: 0.1 (10% tolerance)
     crop-padding: '50'                         # Default: 50px
     crop-min-height: '300'                     # Default: 300px
-    ci-branch-name: '_ci'                      # Default: '_ci'
     working-directory: .                       # Default: '.'
 ```
 
@@ -136,7 +139,7 @@ Use in the compare job to generate diffs and post PR comments:
 3. **Download & compare** - Compare job downloads both artifact sets
 4. **Generate diffs** - Uses odiff to highlight pixel differences
 5. **Smart cropping** - Shows only changed regions with context padding
-6. **Store diffs** - Uploads diff images to `_ci` branch (content-addressed, SHA256 hashed)
+6. **Store diffs** - Uploads diff images to ImgBB (auto-expires after 30 days)
 7. **Comment on PR** - Posts expandable comparison gallery with side-by-side views
 
 ## Example PR Comment
@@ -168,6 +171,7 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
     fail-on-changes: true
 ```
 
@@ -195,6 +199,7 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
     post-comment: false
 ```
 
@@ -219,6 +224,7 @@ Example usage:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
 
 - name: Check results
   run: |
@@ -229,7 +235,7 @@ Example usage:
 ## Requirements
 
 - Playwright tests that save screenshots to a directory
-- `contents: write` permission (for updating `_ci` branch with diff images)
+- ImgBB API key (free at https://api.imgbb.com/)
 - `pull-requests: write` permission (for posting PR comments)
 - Node.js project with `package.json` (for capture mode)
 
