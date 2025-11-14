@@ -1,0 +1,85 @@
+name: Update Playwright Version
+
+on:
+  schedule:
+    # Check for updates every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get latest Playwright version
+        id: playwright
+        run: |
+          # Get latest Playwright version from npm
+          LATEST_VERSION=$(npm view playwright version)
+          echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "Latest Playwright version: $LATEST_VERSION"
+
+          # Get current version from Dockerfile
+          CURRENT_VERSION=$(grep -oP 'mcr.microsoft.com/playwright:v\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile || echo "none")
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current Playwright version: $CURRENT_VERSION"
+
+          # Check if update is needed
+          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+            echo "Update needed: $CURRENT_VERSION -> $LATEST_VERSION"
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Already on latest version"
+          fi
+
+      - name: Update Dockerfile
+        if: steps.playwright.outputs.needs_update == 'true'
+        run: |
+          LATEST_VERSION="${{ steps.playwright.outputs.latest }}"
+
+          # Update the FROM line in Dockerfile
+          sed -i "s|FROM mcr.microsoft.com/playwright:.*|FROM mcr.microsoft.com/playwright:v${LATEST_VERSION}-noble|g" Dockerfile
+
+          echo "Updated Dockerfile to use Playwright v${LATEST_VERSION}"
+
+      - name: Create Pull Request
+        if: steps.playwright.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Playwright to v${{ steps.playwright.outputs.latest }}"
+          branch: update-playwright-${{ steps.playwright.outputs.latest }}
+          delete-branch: true
+          title: "chore: Update Playwright to v${{ steps.playwright.outputs.latest }}"
+          body: |
+            ## 🎭 Playwright Version Update
+
+            This PR updates the Playwright Docker image to the latest version.
+
+            **Changes:**
+            - Current version: `v${{ steps.playwright.outputs.current }}`
+            - New version: `v${{ steps.playwright.outputs.latest }}`
+
+            **What's included:**
+            - Updated `Dockerfile` to use `mcr.microsoft.com/playwright:v${{ steps.playwright.outputs.latest }}-noble`
+
+            **Automated checks:**
+            - ✅ Docker image will be rebuilt automatically
+            - ✅ Visual regression tests will run on this PR
+            - ✅ All workflows will validate the new version
+
+            **Release notes:**
+            See https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest }}
+
+            ---
+            *This PR was automatically created by the Update Playwright Version workflow.*
+          labels: |
+            dependencies
+            automation
