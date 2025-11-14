@@ -44,8 +44,8 @@ jobs:
 
       - name: Commit dist/ if changed
         run: |
-          git config --local user.email "visual-regression-action@users.noreply.github.com"
-          git config --local user.name "visual-regression-action"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
           if [ -n "$(git status --porcelain dist/)" ]; then
             git add dist/
@@ -105,8 +105,8 @@ jobs:
         run: |
           BUMP_TYPE="${{ steps.version_bump.outputs.bump }}"
 
-          git config --local user.email "visual-regression-action@users.noreply.github.com"
-          git config --local user.name "visual-regression-action"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
           npm version $BUMP_TYPE -m "Release: v%s"
 
