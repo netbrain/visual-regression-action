@@ -440,7 +440,6 @@ MIT
 - [Playwright](https://playwright.dev/) - Browser automation
 - [odiff](https://github.com/dmtrKovalenko/odiff) - Image comparison
 - [ImageMagick](https://imagemagick.org/) - Image manipulation
-- Inspired by [eik-it/export.fish-site](https://github.com/eik-it/export.fish-site) visual regression workflow
 
 ## 🔗 Links
 

@@ -2,7 +2,7 @@
 
 ## ✅ Completed Implementation
 
-This repository now contains a complete GitHub Action for visual regression testing, based on the reference implementation from `eik-it/export.fish-site`.
+This repository now contains a complete GitHub Action for visual regression testing with Playwright.
 
 ## 📦 What Was Built
 
@@ -184,18 +184,18 @@ To avoid conflicts when committing screenshots:
 4. Pop stash and commit
 5. Force-push with lease
 
-## 📊 Comparison with Reference Implementation
+## 📊 Key Features
 
-| Feature | eik-it/export.fish-site | This Action |
-|---------|------------------------|-------------|
-| **Reusability** | Project-specific workflow | Reusable GitHub Action |
-| **Configuration** | Hardcoded in YAML | 15 configurable inputs |
-| **Installation** | Manual setup required | One-line usage |
-| **Speed** | Installs deps on every run | Pre-built Docker image |
-| **Documentation** | Internal project docs | Public README + examples |
-| **Testing** | N/A | Self-testing workflows |
-| **Versioning** | N/A | Semantic versioning |
-| **Demo** | N/A | Live showcase PR |
+| Feature | Description |
+|---------|-------------|
+| **Reusability** | Reusable GitHub Action for any project |
+| **Configuration** | 15 configurable inputs for flexibility |
+| **Installation** | One-line usage in workflows |
+| **Speed** | Pre-built Docker image for fast execution |
+| **Documentation** | Comprehensive README + architecture docs |
+| **Testing** | Self-testing workflows built-in |
+| **Versioning** | Automated semantic versioning |
+| **Demo** | Live showcase PR that auto-updates |
 
 ## 🔮 Future Enhancements
 
@@ -331,7 +331,6 @@ MIT - See LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- Original inspiration: [eik-it/export.fish-site](https://github.com/eik-it/export.fish-site)
 - Playwright team for excellent browser automation
 - odiff authors for fast image comparison
 - GitHub Actions team for the platform
