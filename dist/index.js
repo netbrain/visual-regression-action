@@ -417,6 +417,7 @@ async function getFileHash(filePath) {
 async function uploadToCiBranch(inputs, images, prNumber) {
     core.info(`Uploading ${images.length} images to ${inputs.ciBranchName} branch...`);
     const worktreeDir = `/tmp/_ci_worktree_${Date.now()}`;
+    const originalCwd = process.cwd();
     try {
         // Check if CI branch exists by capturing output
         let lsRemoteOutput = '';
@@ -478,8 +479,8 @@ This branch stores content-addressed CI artifacts (visual regression diff images
         core.info(`✅ Uploaded ${images.length} images in single commit`);
     }
     finally {
-        // Clean up worktree
-        process.chdir('/');
+        // Clean up worktree and restore original directory
+        process.chdir(originalCwd);
         await exec.exec('git', ['worktree', 'remove', worktreeDir, '--force'], { ignoreReturnCode: true });
     }
 }
