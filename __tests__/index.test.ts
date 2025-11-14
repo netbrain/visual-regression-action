@@ -98,14 +98,17 @@ describe('Visual Regression Action', () => {
     (github.getOctokit as jest.Mock) = jest.fn().mockReturnValue(mockOctokit);
 
     // Reset fs mock functions
-    const fsMock = require('fs');
-    fsMock.promises.mkdir.mockReset().mockResolvedValue(undefined);
-    fsMock.promises.readdir.mockReset().mockResolvedValue([]);
-    fsMock.promises.rename.mockReset().mockResolvedValue(undefined);
-    fsMock.promises.unlink.mockReset().mockResolvedValue(undefined);
-    fsMock.promises.readFile.mockReset().mockResolvedValue(Buffer.from(''));
-    fsMock.promises.writeFile.mockReset().mockResolvedValue(undefined);
-    fsMock.existsSync.mockReset().mockReturnValue(false);
+    const fsMock = require('fs'); 
+    const fsPromisesMock = require('fs/promises');
+
+    fsMock.existsSync = jest.fn().mockReturnValue(false);
+
+    fsPromisesMock.mkdir = jest.fn().mockResolvedValue(undefined);
+    fsPromisesMock.readdir = jest.fn().mockResolvedValue([]);
+    fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
+    fsPromisesMock.unlink = jest.fn().mockResolvedValue(undefined);
+    fsPromisesMock.readFile = jest.fn().mockResolvedValue(Buffer.from(''));
+    fsPromisesMock.writeFile = jest.fn().mockResolvedValue(undefined);
   });
 
   describe('getInputs', () => {
@@ -167,8 +170,9 @@ describe('Visual Regression Action', () => {
     it('should proceed if running in a PR context', async () => {
       // Mock exec to succeed for all git/playwright commands
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -183,8 +187,9 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -197,8 +202,9 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -212,8 +218,9 @@ describe('Visual Regression Action', () => {
   describe('run - base screenshot fetching', () => {
     it('should fetch base screenshots from base branch when available', async () => {
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -233,8 +240,9 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
       fsMock.existsSync.mockReturnValue(false);
 
       await run();
@@ -251,8 +259,9 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -263,8 +272,9 @@ describe('Visual Regression Action', () => {
   describe('run - Playwright execution', () => {
     it('should execute the Playwright command', async () => {
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -292,9 +302,10 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshot files in screenshotDir (line 107)
         .mockResolvedValueOnce(['test.png']); // New screenshot files in screenshotBaseDirAbs (line 147)
 
@@ -327,10 +338,13 @@ describe('Visual Regression Action', () => {
       });
 
       const fsMock = require('fs');
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.mkdir = jest.fn().mockResolvedValue(undefined);
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshot files
         .mockResolvedValueOnce(['test.png']); // New screenshot files
+      fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
 
       await run();
 
@@ -339,8 +353,9 @@ describe('Visual Regression Action', () => {
 
     it('should mark files as identical when odiff finds no changes', async () => {
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs');
-      fsMock.promises.readdir
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])
         .mockResolvedValueOnce(['test.png']);
 
@@ -414,9 +429,11 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshots
         .mockResolvedValueOnce(['test.png']); // New screenshots
 
@@ -458,12 +475,14 @@ describe('Visual Regression Action', () => {
         if (cmd === 'odiff') {
           return Promise.resolve(1);
         }
+      fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshots
         .mockResolvedValueOnce(['test.png']); // New screenshots
 
@@ -494,9 +513,10 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(false);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])
         .mockResolvedValueOnce([]);
 
@@ -514,7 +534,9 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -540,9 +562,10 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(false);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])
         .mockResolvedValueOnce([]);
 
@@ -574,13 +597,15 @@ describe('Visual Regression Action', () => {
         }
         if (cmd === 'odiff') {
           return Promise.resolve(1); // Differences detected
+      fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
         }
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshots
         .mockResolvedValueOnce(['test.png']); // New screenshots
 
@@ -595,7 +620,9 @@ describe('Visual Regression Action', () => {
       });
 
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -606,7 +633,9 @@ describe('Visual Regression Action', () => {
   describe('run - output setting', () => {
     it('should set all outputs correctly', async () => {
       (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); fsMock.promises.readdir.mockResolvedValue([]);
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir.mockResolvedValue([]);
 
       await run();
 
@@ -655,6 +684,7 @@ describe('Visual Regression Action', () => {
           const stdout = options?.listeners?.stdout;
           if (stdout) {
             stdout(Buffer.from('1280x720'));
+      fsPromisesMock.rename = jest.fn().mockResolvedValue(undefined);
           }
         }
         if (cmd === 'odiff') {
@@ -663,9 +693,10 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
       fsMock.existsSync.mockReturnValue(true);
-      fsMock.promises.readdir
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])  // Base screenshots
         .mockResolvedValueOnce(['test.png']); // New screenshots
 
@@ -686,7 +717,9 @@ describe('Visual Regression Action', () => {
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs'); fsMock.promises.readdir
+      const fsMock = require('fs'); 
+      const fsPromisesMock = require('fs/promises');
+      fsPromisesMock.readdir
         .mockResolvedValueOnce(['test.png'])
         .mockResolvedValueOnce(['test.png']);
 
