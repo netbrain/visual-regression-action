@@ -82,29 +82,45 @@ inputs:
 outputs:
   has-changes:
     description: 'Whether visual changes were detected (true/false)'
+    value: ${{ steps.run-action.outputs.has-changes }}
   has-diffs:
     description: 'Whether visual diffs were generated (true/false)'
+    value: ${{ steps.run-action.outputs.has-diffs }}
   screenshots-committed:
     description: 'Whether screenshots were committed to PR (true/false)'
+    value: ${{ steps.run-action.outputs.screenshots-committed }}
   comment-posted:
     description: 'Whether PR comment was posted (true/false)'
+    value: ${{ steps.run-action.outputs.comment-posted }}
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  env:
-    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-    INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
-    INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-    INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
-    INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
-    INPUT_COMMIT_SCREENSHOTS: ${{ inputs.commit-screenshots }}
-    INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-    INPUT_USE_CI_BRANCH: ${{ inputs.use-ci-branch }}
-    INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
-    INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
-    INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
-    INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
-    INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
-    INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
-    INPUT_AMEND_COMMIT: ${{ inputs.amend-commit }}
+  using: 'composite'
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y imagemagick
+        npm install -g odiff-bin@2.9.0
+
+    - name: Run visual regression action
+      id: run-action
+      shell: bash
+      env:
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
+        INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
+        INPUT_COMMIT_SCREENSHOTS: ${{ inputs.commit-screenshots }}
+        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+        INPUT_USE_CI_BRANCH: ${{ inputs.use-ci-branch }}
+        INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
+        INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
+        INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
+        INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
+        INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
+        INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
+        INPUT_AMEND_COMMIT: ${{ inputs.amend-commit }}
+      run: |
+        node ${{ github.action_path }}/dist/index.js
