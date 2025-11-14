@@ -24,7 +24,7 @@ interface ActionInputs {
   amendCommit: boolean;
 }
 
-function getInputs(): ActionInputs {
+export function getInputs(): ActionInputs {
   return {
     githubToken: core.getInput('github-token', { required: true }),
     playwrightCommand: core.getInput('playwright-command', { required: true }),
@@ -44,7 +44,7 @@ function getInputs(): ActionInputs {
   };
 }
 
-async function run(): Promise<void> {
+export async function run(): Promise<void> {
   try {
     const inputs = getInputs();
     const context = github.context;
@@ -430,7 +430,7 @@ async function run(): Promise<void> {
   }
 }
 
-async function getImageDimensions(imagePath: string): Promise<{ width: number; height: number }> {
+export async function getImageDimensions(imagePath: string): Promise<{ width: number; height: number }> {
   let output = '';
   await exec.exec('identify', ['-format', '%wx%h', imagePath], {
     listeners: {
