@@ -12,7 +12,8 @@ inputs:
 
   playwright-command:
     description: 'Command to run Playwright tests (e.g., "npm run test:e2e")'
-    required: true
+    required: false
+    default: 'npm test'
 
   working-directory:
     description: 'Working directory for the action (where package.json is located)'

@@ -49,7 +49,6 @@ jobs:
       - uses: netbrain/visual-regression-action@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          playwright-command: npm test
 ```
 
 **3. Open a PR** - The action will comment with any visual changes.
@@ -70,7 +69,7 @@ jobs:
 - uses: netbrain/visual-regression-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    playwright-command: npm test                    # Required
+    playwright-command: npm test                    # Default: 'npm test'
     screenshot-directory: screenshots               # Default
     working-directory: .                           # Default
     commit-screenshots: true                       # Auto-commit updated screenshots
@@ -128,7 +127,6 @@ jobs:
 - uses: netbrain/visual-regression-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    playwright-command: npm test
     fail-on-changes: true
 ```
 
@@ -138,7 +136,6 @@ jobs:
 - uses: netbrain/visual-regression-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    playwright-command: npm test
     commit-screenshots: false
 ```
 
@@ -167,7 +164,6 @@ Use these in subsequent workflow steps:
   uses: netbrain/visual-regression-action@v1
   with:
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    playwright-command: npm test
 
 - name: Check results
   run: |
