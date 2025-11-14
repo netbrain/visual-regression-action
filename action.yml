@@ -8,8 +8,7 @@ branding:
 inputs:
   github-token:
     description: 'GitHub token for API access (defaults to GITHUB_TOKEN)'
-    required: false
-    default: ${{ github.token }}
+    required: true
 
   playwright-command:
     description: 'Command to run Playwright tests (e.g., "npm run test:e2e")'
@@ -28,7 +27,7 @@ inputs:
   base-branch:
     description: 'Base branch to compare against (defaults to PR base branch)'
     required: false
-    default: ${{ github.base_ref }}
+    default: 'main'
 
   commit-screenshots:
     description: 'Commit updated screenshots back to PR branch (true/false)'
