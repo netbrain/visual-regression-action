@@ -3,12 +3,6 @@ name: Visual Regression Testing
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    paths:
-      - 'example/**'
-      - 'src/**'
-      - 'Dockerfile'
-      - 'action.yml'
-      - '.github/workflows/visual-regression.yml'
 
 permissions:
   contents: write
