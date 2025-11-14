@@ -58,7 +58,7 @@ jobs:
 - **Zero config** - Works immediately with sensible defaults
 - **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
 - **Smart cropping** - Shows only the changed regions, not entire pages
-- **Clean storage** - Uploads diff images to a dedicated `_ci` branch
+- **Clean storage** - Stores diff images on dedicated `_ci` branch with content-addressed filenames
 - **Auto-commits** - Updates screenshots in your PR automatically
 
 ## Configuration
@@ -83,7 +83,6 @@ jobs:
     diff-threshold: '0.1'          # Pixel difference tolerance (0.0-1.0)
     crop-padding: '50'             # Padding around changed region (px)
     crop-min-height: '300'         # Minimum crop height (px)
-    use-ci-branch: true            # Store artifacts on _ci branch
     ci-branch-name: '_ci'          # Branch name for artifacts
     base-branch: main              # Branch to compare against
     install-deps: true             # Run npm ci before tests

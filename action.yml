@@ -40,11 +40,6 @@ inputs:
     required: false
     default: 'true'
 
-  use-ci-branch:
-    description: 'Use _ci branch for artifact storage (true/false)'
-    required: false
-    default: 'true'
-
   ci-branch-name:
     description: 'Name of CI artifacts branch'
     required: false
@@ -101,7 +96,6 @@ runs:
     INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
     INPUT_COMMIT_SCREENSHOTS: ${{ inputs.commit-screenshots }}
     INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-    INPUT_USE_CI_BRANCH: ${{ inputs.use-ci-branch }}
     INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
     INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
     INPUT_CROP_PADDING: ${{ inputs.crop-padding }}

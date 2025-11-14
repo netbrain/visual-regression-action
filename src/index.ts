@@ -14,7 +14,6 @@ interface ActionInputs {
   baseBranch: string;
   commitScreenshots: boolean;
   postComment: boolean;
-  useCiBranch: boolean;
   ciBranchName: string;
   diffThreshold: number;
   cropPadding: number;
@@ -33,7 +32,6 @@ export function getInputs(): ActionInputs {
     baseBranch: core.getInput('base-branch') || process.env.GITHUB_BASE_REF || 'main',
     commitScreenshots: core.getBooleanInput('commit-screenshots'),
     postComment: core.getBooleanInput('post-comment'),
-    useCiBranch: core.getBooleanInput('use-ci-branch'),
     ciBranchName: core.getInput('ci-branch-name') || '_ci',
     diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
     cropPadding: parseInt(core.getInput('crop-padding')) || 50,
@@ -294,19 +292,16 @@ export async function run(): Promise<void> {
         const basename = file.replace('-combined.png', '');
         const combinedPath = path.join(diffsDir, file);
 
-        // Get image URL (upload to CI branch if enabled)
-        let imageUrl = '';
-        if (inputs.useCiBranch) {
-          const hash = await getFileHash(combinedPath);
-          const filename = `${hash}.png`;
-          imageUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${inputs.ciBranchName}/${filename}`;
+        // Get image URL (upload to CI branch)
+        const hash = await getFileHash(combinedPath);
+        const filename = `${hash}.png`;
+        const imageUrl = `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${inputs.ciBranchName}/${filename}`;
 
-          imagesToUpload.push({
-            path: combinedPath,
-            hash: filename,
-            url: imageUrl
-          });
-        }
+        imagesToUpload.push({
+          path: combinedPath,
+          hash: filename,
+          url: imageUrl
+        });
 
         comment += `<details>\n`;
         comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
@@ -314,9 +309,7 @@ export async function run(): Promise<void> {
         comment += `  <table>\n`;
         comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
         comment += `  </table>\n`;
-        if (imageUrl) {
-          comment += `  <img src="${imageUrl}" alt="${basename} comparison" width="100%">\n`;
-        }
+        comment += `  <img src="${imageUrl}" alt="${basename} comparison" width="100%">\n`;
         comment += `</div>\n\n`;
         comment += `</details>\n\n`;
       }
@@ -324,8 +317,8 @@ export async function run(): Promise<void> {
       comment += `---\n\n`;
       comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height). Full-page screenshots are available in \`${inputs.screenshotDirectory}/\` directory.*`;
 
-      // Upload images to CI branch if needed
-      if (inputs.useCiBranch && imagesToUpload.length > 0) {
+      // Upload images to CI branch
+      if (imagesToUpload.length > 0) {
         await uploadToCiBranch(inputs, imagesToUpload, prNumber);
 
         // Wait for CDN propagation

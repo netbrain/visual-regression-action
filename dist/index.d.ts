@@ -6,7 +6,6 @@ interface ActionInputs {
     baseBranch: string;
     commitScreenshots: boolean;
     postComment: boolean;
-    useCiBranch: boolean;
     ciBranchName: string;
     diffThreshold: number;
     cropPadding: number;
