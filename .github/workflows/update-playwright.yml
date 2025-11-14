@@ -83,3 +83,11 @@ jobs:
           Release notes: https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest_version }}"
 
           git push origin main
+
+      - name: Trigger release workflow
+        if: steps.playwright.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Triggering release workflow..."
+          gh workflow run release.yml --repo ${{ github.repository }}
