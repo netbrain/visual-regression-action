@@ -1,0 +1,111 @@
+name: 'Visual Regression Testing'
+description: 'Automated Playwright visual regression with screenshot diffs, smart cropping, PR comments, and CI artifact storage'
+author: 'NetBrain AS'
+branding:
+  icon: 'camera'
+  color: 'purple'
+
+inputs:
+  github-token:
+    description: 'GitHub token for API access (defaults to GITHUB_TOKEN)'
+    required: false
+    default: ${{ github.token }}
+
+  playwright-command:
+    description: 'Command to run Playwright tests (e.g., "npm run test:e2e")'
+    required: true
+
+  working-directory:
+    description: 'Working directory for the action (where package.json is located)'
+    required: false
+    default: '.'
+
+  screenshot-directory:
+    description: 'Directory where screenshots are saved (relative to working-directory)'
+    required: false
+    default: 'screenshots'
+
+  base-branch:
+    description: 'Base branch to compare against (defaults to PR base branch)'
+    required: false
+    default: ${{ github.base_ref }}
+
+  commit-screenshots:
+    description: 'Commit updated screenshots back to PR branch (true/false)'
+    required: false
+    default: 'true'
+
+  post-comment:
+    description: 'Post visual diff comment on PR (true/false)'
+    required: false
+    default: 'true'
+
+  use-ci-branch:
+    description: 'Use _ci branch for artifact storage (true/false)'
+    required: false
+    default: 'true'
+
+  ci-branch-name:
+    description: 'Name of CI artifacts branch'
+    required: false
+    default: '_ci'
+
+  diff-threshold:
+    description: 'Odiff threshold for pixel differences (0.0-1.0, default 0.1 = 10%)'
+    required: false
+    default: '0.1'
+
+  crop-padding:
+    description: 'Vertical padding around diff regions in pixels'
+    required: false
+    default: '50'
+
+  crop-min-height:
+    description: 'Minimum crop height in pixels'
+    required: false
+    default: '300'
+
+  install-deps:
+    description: 'Install npm dependencies before running tests (true/false)'
+    required: false
+    default: 'true'
+
+  fail-on-changes:
+    description: 'Fail the action if visual changes are detected (true/false)'
+    required: false
+    default: 'false'
+
+  amend-commit:
+    description: 'Amend existing commit instead of creating new one (true/false)'
+    required: false
+    default: 'true'
+
+outputs:
+  has-changes:
+    description: 'Whether visual changes were detected (true/false)'
+  has-diffs:
+    description: 'Whether visual diffs were generated (true/false)'
+  screenshots-committed:
+    description: 'Whether screenshots were committed to PR (true/false)'
+  comment-posted:
+    description: 'Whether PR comment was posted (true/false)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+    INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
+    INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+    INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
+    INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
+    INPUT_COMMIT_SCREENSHOTS: ${{ inputs.commit-screenshots }}
+    INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+    INPUT_USE_CI_BRANCH: ${{ inputs.use-ci-branch }}
+    INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
+    INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
+    INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
+    INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
+    INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
+    INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
+    INPUT_AMEND_COMMIT: ${{ inputs.amend-commit }}

@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.env
+.DS_Store
+screenshots-base/
+test-results/
+playwright-report/
+playwright/.cache/
+example/node_modules/
+example/screenshots/*.png
+!example/screenshots/.gitkeep

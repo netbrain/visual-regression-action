@@ -1,0 +1,13 @@
+{
+  "name": "visual-regression-example",
+  "version": "1.0.0",
+  "description": "Example static site for visual regression testing",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -c-1",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "http-server": "^14.1.1"
+  }
+}
