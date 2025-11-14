@@ -312,8 +312,8 @@ async function uploadToImgBB(apiKey, images) {
                 body: new URLSearchParams({
                     key: apiKey,
                     image: base64Image,
-                    name: img.hash.replace('.png', ''),
-                    expiration: '2592000' // 30 days (1 month)
+                    name: img.hash.replace('.png', '')
+                    // No expiration - images stored permanently for long-term PR reference
                 })
             });
             if (!response.ok) {

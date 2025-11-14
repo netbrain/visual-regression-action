@@ -91,7 +91,7 @@ jobs:
 - **Smart cropping** - Shows only the changed regions, not entire pages
 - **Clean storage** - Uses GitHub Actions artifacts for screenshots, ImgBB for diff images
 - **No repo bloat** - Screenshots aren't committed to your repository
-- **Auto-cleanup** - Diff images automatically expire after 30 days
+- **Permanent history** - Diff images stored permanently for long-term PR reference
 
 ## Configuration
 
@@ -139,7 +139,7 @@ Use in the compare job to generate diffs and post PR comments:
 3. **Download & compare** - Compare job downloads both artifact sets
 4. **Generate diffs** - Uses odiff to highlight pixel differences
 5. **Smart cropping** - Shows only changed regions with context padding
-6. **Store diffs** - Uploads diff images to ImgBB (auto-expires after 30 days)
+6. **Store diffs** - Uploads diff images to ImgBB (stored permanently)
 7. **Comment on PR** - Posts expandable comparison gallery with side-by-side views
 
 ## Example PR Comment
