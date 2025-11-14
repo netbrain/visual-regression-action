@@ -4,7 +4,7 @@ Automated Playwright visual regression with screenshot diffs, smart cropping, PR
 
 This GitHub Action provides a complete end-to-end visual regression workflow for pull requests. It detects visual changes using Playwright + odiff, generates cropped diffs that highlight only the changed regions, uploads artifacts to a dedicated CI branch using content-addressed filenames, and comments on the PR with expandable previews.
 
-Ideal for maintaining UI consistency in Astro, React, Svelte, Vue, or any Playwright-based frontend project.
+Ideal for maintaining UI consistency in any web project that Playwright can render - static sites, SPAs, server-rendered apps, or full-stack frameworks.
 
 ## ✨ Features
 
