@@ -16,7 +16,7 @@ jobs:
         branch: [base, pr]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ matrix.branch == 'base' && github.event.pull_request.base.ref || github.head_ref }}
           fetch-depth: 1
@@ -43,7 +43,7 @@ jobs:
     needs: capture
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
