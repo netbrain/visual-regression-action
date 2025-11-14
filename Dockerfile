@@ -23,11 +23,12 @@ WORKDIR /action
 COPY package*.json ./
 RUN npm ci --production
 
+# Force cache bust for dist directory
+ARG CACHEBUST=1
+
 # Copy action scripts
 COPY dist/ ./dist/
 COPY action.yml ./
-
-# Version: 1.4.2
 
 # Set git safe directory (for GitHub Actions)
 RUN git config --global --add safe.directory '*'
