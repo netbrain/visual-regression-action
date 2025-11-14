@@ -148,13 +148,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER="${{ steps.get_pr.outputs.pr_number }}"
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 
-          gh pr edit $PR_NUMBER --body "$(cat <<'EOF'
+          gh pr edit $PR_NUMBER --body "$(cat <<EOF
           ## 📸 Visual Regression Showcase
 
           This PR demonstrates the visual-regression-action in action!
 
-          **🔄 Last updated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **🔄 Last updated:** $TIMESTAMP
 
           ### What's Happening Here?
 
