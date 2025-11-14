@@ -214,7 +214,7 @@ async function run() {
                         }
                     });
                     const bbox = output.trim();
-                    const match = bbox.match(/(\d+)x(\d+)\+(\d+)\+(\d+)/);
+                    const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
                     if (match) {
                         const [, width, height, x, y] = match.map(Number);
                         const imgDims = await getImageDimensions(newImg);
