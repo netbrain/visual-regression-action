@@ -220,7 +220,9 @@ async function run(): Promise<void> {
           });
 
           const bbox = output.trim();
+          core.info(`Bbox output: ${bbox}`);
           const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
+          core.info(`Match result: ${match ? 'MATCHED' : 'NO MATCH'}`);
 
           if (match) {
             const [, width, height, x, y] = match.map(Number);
