@@ -433,7 +433,7 @@ users to customize the highlight color used in diff images.
 
 ## 📝 License
 
-Apache-2.0
+MIT
 
 ## 🙏 Acknowledgments
 

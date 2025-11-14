@@ -327,7 +327,7 @@ Contributions are welcome! See the README for:
 
 ## 📝 License
 
-Apache-2.0 - See LICENSE file for details
+MIT - See LICENSE file for details
 
 ## 🙏 Acknowledgments
 

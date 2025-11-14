@@ -1,6 +1,6 @@
 name: 'Visual Regression Testing'
 description: 'Automated Playwright visual regression with screenshot diffs, smart cropping, PR comments, and CI artifact storage'
-author: 'NetBrain AS'
+author: 'Kim Eik'
 branding:
   icon: 'camera'
   color: 'purple'
