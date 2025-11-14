@@ -1,5 +1,17 @@
 name: Cleanup CI Artifacts Branch
 
+# WHY THIS WORKFLOW EXISTS:
+# The _ci branch stores diff images for PR comments. We can't use GitHub Actions
+# artifacts for this because:
+# 1. Artifacts require authentication - can't be embedded in public PR comments
+# 2. Artifact URLs expire after 1 hour
+# 3. GitHub removed public artifact access in 2020
+# 4. raw.githubusercontent.com URLs are the ONLY way to show images in PR comments
+#
+# This workflow prevents unbounded _ci branch growth by:
+# - Deleting images older than 30 days
+# - Squashing all commits to keep git history small
+
 on:
   schedule:
     - cron: '0 0 * * 0'  # Weekly cleanup on Sundays at midnight UTC
