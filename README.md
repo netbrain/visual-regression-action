@@ -448,7 +448,3 @@ Apache-2.0
 - [Example PR](../../pulls) - See the action in action!
 - [Issues](../../issues) - Report bugs or request features
 - [Discussions](../../discussions) - Ask questions or share ideas
-
----
-
-**Built with ❤️ by NetBrain AS**
