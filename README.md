@@ -122,6 +122,7 @@ Use in the compare job to generate diffs and post PR comments:
     mode: compare                              # Required: 'capture' or 'compare'
     github-token: ${{ secrets.GITHUB_TOKEN }}  # Required for compare mode
     imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}# Required for compare mode
+    imgbb-expiration: ''                       # Optional: seconds (60-15552000), empty = permanent
     base-artifact: screenshots-base            # Default: 'screenshots-base'
     pr-artifact: screenshots-pr                # Default: 'screenshots-pr'
     post-comment: true                         # Default: true

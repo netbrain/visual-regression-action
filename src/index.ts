@@ -27,6 +27,7 @@ interface CompareInputs {
   cropMinHeight: number;
   failOnChanges: boolean;
   imgbbApiKey: string;
+  imgbbExpiration?: number;
 }
 
 type ActionInputs = CaptureInputs | CompareInputs;
@@ -45,6 +46,8 @@ export function getInputs(): ActionInputs {
     };
   } else {
     const imgbbApiKey = core.getInput('imgbb-api-key', { required: true });
+    const imgbbExpirationStr = core.getInput('imgbb-expiration');
+    const imgbbExpiration = imgbbExpirationStr ? parseInt(imgbbExpirationStr) : undefined;
 
     return {
       mode: 'compare',
@@ -57,7 +60,8 @@ export function getInputs(): ActionInputs {
       cropPadding: parseInt(core.getInput('crop-padding')) || 50,
       cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
       failOnChanges: core.getBooleanInput('fail-on-changes'),
-      imgbbApiKey
+      imgbbApiKey,
+      imgbbExpiration
     };
   }
 }
@@ -263,7 +267,7 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
 
     // Upload images to ImgBB
     core.info('Uploading diff images to ImgBB...');
-    await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload);
+    await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload, inputs.imgbbExpiration);
 
     // Build comment
     let comment = `## 📸 Visual Regression Changes Detected\n\n`;
@@ -337,26 +341,37 @@ async function getFileHash(filePath: string): Promise<string> {
 
 async function uploadToImgBB(
   apiKey: string,
-  images: { path: string; hash: string; url: string }[]
+  images: { path: string; hash: string; url: string }[],
+  expiration?: number
 ): Promise<void> {
   core.info(`Uploading ${images.length} images to ImgBB...`);
+  if (expiration) {
+    core.info(`Images will expire after ${expiration} seconds (${Math.round(expiration / 86400)} days)`);
+  } else {
+    core.info('Images will be stored permanently');
+  }
 
   for (const img of images) {
     try {
       const imageData = await fs.readFile(img.path);
       const base64Image = imageData.toString('base64');
 
+      const params: Record<string, string> = {
+        key: apiKey,
+        image: base64Image,
+        name: img.hash.replace('.png', '')
+      };
+
+      if (expiration) {
+        params.expiration = expiration.toString();
+      }
+
       const response = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          key: apiKey,
-          image: base64Image,
-          name: img.hash.replace('.png', '')
-          // No expiration - images stored permanently for long-term PR reference
-        })
+        body: new URLSearchParams(params)
       });
 
       if (!response.ok) {

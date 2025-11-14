@@ -79,6 +79,11 @@ inputs:
     required: false
     default: ''
 
+  imgbb-expiration:
+    description: 'Image expiration time in seconds (60-15552000). Leave empty for permanent storage.'
+    required: false
+    default: ''
+
 outputs:
   screenshot-count:
     description: 'Number of PNG files found (capture mode)'
@@ -110,3 +115,4 @@ runs:
     INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
     INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
     INPUT_IMGBB_API_KEY: ${{ inputs.imgbb-api-key }}
+    INPUT_IMGBB_EXPIRATION: ${{ inputs.imgbb-expiration }}
