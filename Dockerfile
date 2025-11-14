@@ -2,7 +2,7 @@
 # Pre-built with all dependencies for fast CI execution
 # This image is automatically built and published to GHCR
 
-FROM mcr.microsoft.com/playwright@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a
+FROM mcr.microsoft.com/playwright@sha256:02810c978d5396bf382ab6015c25ad6bed9e39f4a41c5b9c829e9fea439274e2
 
 # Install additional system dependencies
 RUN apt-get update && apt-get install -y \
