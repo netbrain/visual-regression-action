@@ -30,4 +30,4 @@ COPY action.yml ./
 RUN git config --global --add safe.directory '*'
 
 # Default command
-CMD ["node", "dist/index.js"]
+CMD ["node", "/action/dist/index.js"]
