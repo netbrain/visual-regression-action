@@ -305,6 +305,8 @@ async function uploadToCiBranch(inputs, images, prNumber) {
     const worktreeDir = `/tmp/_ci_worktree_${Date.now()}`;
     const originalCwd = process.cwd();
     try {
+        // Configure git safe.directory for the workspace
+        await exec.exec('git', ['config', '--global', '--add', 'safe.directory', originalCwd]);
         // Check if CI branch exists by capturing output
         let lsRemoteOutput = '';
         await exec.exec('git', [
