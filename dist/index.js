@@ -418,14 +418,21 @@ async function uploadToCiBranch(inputs, images, prNumber) {
     core.info(`Uploading ${images.length} images to ${inputs.ciBranchName} branch...`);
     const worktreeDir = `/tmp/_ci_worktree_${Date.now()}`;
     try {
-        // Check if CI branch exists
-        const exitCode = await exec.exec('git', [
+        // Check if CI branch exists by capturing output
+        let lsRemoteOutput = '';
+        await exec.exec('git', [
             'ls-remote',
             '--heads',
             'origin',
             inputs.ciBranchName
-        ], { ignoreReturnCode: true });
-        if (exitCode === 0) {
+        ], {
+            listeners: {
+                stdout: (data) => { lsRemoteOutput += data.toString(); }
+            },
+            ignoreReturnCode: true
+        });
+        const branchExists = lsRemoteOutput.trim().length > 0;
+        if (branchExists) {
             // Fetch existing branch
             await exec.exec('git', ['fetch', 'origin', `${inputs.ciBranchName}:${inputs.ciBranchName}`, '--depth=1']);
             await exec.exec('git', ['worktree', 'add', worktreeDir, inputs.ciBranchName]);
