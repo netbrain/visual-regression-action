@@ -79,6 +79,10 @@ inputs:
     required: false
     default: 'false'
 
+  imgbb-api-key:
+    description: 'ImgBB API key for image hosting (for private repos where _ci branch is not accessible)'
+    required: false
+
 outputs:
   screenshot-count:
     description: 'Number of PNG files found (capture mode)'
@@ -88,6 +92,8 @@ outputs:
     description: 'Whether visual diffs were detected (compare mode)'
   comment-posted:
     description: 'Whether PR comment was posted (compare mode)'
+  diff-images-directory:
+    description: 'Absolute path to directory containing diff images (compare mode)'
 
 runs:
   using: 'docker'
@@ -108,3 +114,4 @@ runs:
     INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
     INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
     INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
+    INPUT_IMGBB_API_KEY: ${{ inputs.imgbb-api-key }}

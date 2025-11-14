@@ -27,6 +27,7 @@ interface CompareInputs {
   cropPadding: number;
   cropMinHeight: number;
   failOnChanges: boolean;
+  imgbbApiKey?: string;
 }
 
 type ActionInputs = CaptureInputs | CompareInputs;
@@ -55,7 +56,8 @@ export function getInputs(): ActionInputs {
       diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
       cropPadding: parseInt(core.getInput('crop-padding')) || 50,
       cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
-      failOnChanges: core.getBooleanInput('fail-on-changes')
+      failOnChanges: core.getBooleanInput('fail-on-changes'),
+      imgbbApiKey: core.getInput('imgbb-api-key') || undefined
     };
   }
 }
@@ -260,12 +262,18 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
   if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
     core.startGroup('Posting PR comment');
 
-    // Upload images to CI branch
-    await uploadToCiBranch(inputs, imagesToUpload, prNumber);
+    // Upload images - use ImgBB if API key provided, otherwise _ci branch
+    if (inputs.imgbbApiKey) {
+      core.info('Using ImgBB for image hosting (private repo support)');
+      await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload);
+    } else {
+      core.info('Using _ci branch for image hosting');
+      await uploadToCiBranch(inputs, imagesToUpload, prNumber);
 
-    // Wait for CDN propagation
-    core.info('Waiting 5 seconds for CDN propagation...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+      // Wait for CDN propagation (only needed for GitHub raw URLs)
+      core.info('Waiting 5 seconds for CDN propagation...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
 
     // Build comment
     let comment = `## 📸 Visual Regression Changes Detected\n\n`;
@@ -335,6 +343,46 @@ export async function getImageDimensions(imagePath: string): Promise<{ width: nu
 async function getFileHash(filePath: string): Promise<string> {
   const content = await fs.readFile(filePath);
   return createHash('sha256').update(content).digest('hex');
+}
+
+async function uploadToImgBB(
+  apiKey: string,
+  images: { path: string; hash: string; url: string }[]
+): Promise<void> {
+  core.info(`Uploading ${images.length} images to ImgBB...`);
+
+  for (const img of images) {
+    try {
+      const imageData = await fs.readFile(img.path);
+      const base64Image = imageData.toString('base64');
+
+      const response = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          key: apiKey,
+          image: base64Image,
+          name: img.hash.replace('.png', ''),
+          expiration: '2592000' // 30 days (1 month)
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`ImgBB upload failed: ${response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+
+      // Update the URL to use ImgBB's URL
+      img.url = data.data.url;
+      core.info(`✅ Uploaded ${path.basename(img.path)} → ${img.url}`);
+    } catch (error) {
+      core.warning(`Failed to upload ${img.path} to ImgBB: ${error}`);
+      throw error;
+    }
+  }
 }
 
 async function uploadToCiBranch(

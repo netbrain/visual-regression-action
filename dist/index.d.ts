@@ -18,6 +18,7 @@ interface CompareInputs {
     cropPadding: number;
     cropMinHeight: number;
     failOnChanges: boolean;
+    imgbbApiKey?: string;
 }
 type ActionInputs = CaptureInputs | CompareInputs;
 export declare function getInputs(): ActionInputs;
