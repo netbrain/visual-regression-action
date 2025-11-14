@@ -1,6 +1,6 @@
 {
   "name": "visual-regression-action",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "GitHub Action for visual regression testing with Playwright",
   "main": "dist/index.js",
   "scripts": {
