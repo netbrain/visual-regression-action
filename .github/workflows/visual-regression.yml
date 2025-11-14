@@ -9,31 +9,69 @@ permissions:
   pull-requests: write
 
 jobs:
-  visual-regression:
+  capture:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: [base, pr]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          ref: ${{ matrix.branch == 'base' && github.event.pull_request.base.ref || github.head_ref }}
+          fetch-depth: 1
 
-      - name: Run visual regression action
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Capture screenshots
         uses: ./
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          mode: capture
           playwright-command: npm test
           working-directory: example
           screenshot-directory: screenshots
-          base-branch: ${{ github.base_ref }}
-          commit-screenshots: true
+          artifact-name: screenshots-${{ matrix.branch }}
+          install-deps: true
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.branch }}
+          path: example/screenshots/
+          retention-days: 7
+
+  compare:
+    runs-on: ubuntu-latest
+    needs: capture
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download base screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: screenshots-base
+          path: screenshots-base
+
+      - name: Download PR screenshots
+        uses: actions/download-artifact@v4
+        with:
+          name: screenshots-pr
+          path: screenshots-pr
+
+      - name: Compare screenshots
+        uses: ./
+        with:
+          mode: compare
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          base-artifact: screenshots-base
+          pr-artifact: screenshots-pr
           post-comment: true
-          use-ci-branch: true
-          ci-branch-name: _ci
+          fail-on-changes: false
           diff-threshold: '0.1'
           crop-padding: '50'
           crop-min-height: '300'
-          install-deps: true
-          fail-on-changes: false
-          amend-commit: true
+          ci-branch-name: _ci
