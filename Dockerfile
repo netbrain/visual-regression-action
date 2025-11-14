@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install odiff globally via npm
-RUN npm install -g odiff-bin@2.9.0
+RUN npm install -g odiff-bin@4.1.1
 
 # Set working directory
 WORKDIR /action
