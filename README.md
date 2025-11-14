@@ -6,16 +6,7 @@ Catch visual bugs in pull requests with automated screenshot comparison and side
 
 This GitHub Action runs your Playwright tests, compares screenshots against your base branch, and posts a PR comment showing what changed. No more "looks good to me" reviews when the button moved 5 pixels or the color shifted slightly.
 
-**Example PR comment:**
-
-<details>
-<summary>📄 homepage.png</summary>
-
-Shows: Original | Diff (highlighted) | New
-
-</details>
-
-[See it in action →](https://github.com/netbrain/visual-regression-action/pull/1)
+[See it in action →](https://github.com/netbrain/visual-regression-action/pull/2)
 
 ## Quick Start
 

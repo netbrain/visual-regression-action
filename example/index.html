@@ -82,18 +82,20 @@
 
         .cta-button {
             display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
             color: white;
-            padding: 1rem 3rem;
+            padding: 1.25rem 3.5rem;
             border-radius: 50px;
             text-decoration: none;
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             transition: transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
         }
 
         .cta-button:hover {
             transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
         }
 
         footer {
@@ -117,25 +119,25 @@
 </head>
 <body>
     <header>
-        <h1>🎨 Visual Regression Action</h1>
-        <p>Automated screenshot testing for your GitHub workflows</p>
+        <h1>🎨 Visual Regression Testing</h1>
+        <p>Catch visual bugs before they reach production</p>
     </header>
 
     <div class="container">
         <section class="features">
             <div class="feature-card">
-                <h3>📸 Smart Screenshots</h3>
-                <p>Automatically capture and compare screenshots across different viewports and devices using Playwright.</p>
+                <h3>📸 Automated Screenshots</h3>
+                <p>Run your Playwright tests and capture screenshots automatically on every pull request.</p>
             </div>
 
             <div class="feature-card">
-                <h3>🔍 Intelligent Diffs</h3>
-                <p>Generate pixel-perfect diffs with odiff, highlighting only the regions that changed with smart cropping.</p>
+                <h3>🔍 Visual Diffs</h3>
+                <p>See exactly what changed with pixel-perfect comparisons and highlighted differences.</p>
             </div>
 
             <div class="feature-card">
-                <h3>💬 PR Comments</h3>
-                <p>Automatically post visual comparison comments on pull requests with expandable image previews.</p>
+                <h3>💬 PR Integration</h3>
+                <p>Get instant feedback with automated comments showing before/after comparisons directly in your PRs.</p>
             </div>
 
             <div class="feature-card">
