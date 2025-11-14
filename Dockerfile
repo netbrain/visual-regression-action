@@ -24,7 +24,8 @@ COPY package*.json ./
 RUN npm ci --production
 
 # Force cache bust for dist directory
-ARG CACHEBUST=1
+ARG CACHEBUST=2
+RUN echo "Cache bust: $CACHEBUST"
 
 # Copy action scripts
 COPY dist/ ./dist/
