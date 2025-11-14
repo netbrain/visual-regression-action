@@ -395,16 +395,16 @@ This branch stores content-addressed CI artifacts (visual regression diff images
       await fs.writeFile(path.join(worktreeDir, 'README.md'), readme);
 
       await exec.exec('git', ['add', 'README.md']);
-      await exec.exec('git', ['config', 'user.name', 'github-actions[bot]']);
-      await exec.exec('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
+      await exec.exec('git', ['config', 'user.name', 'visual-regression-action']);
+      await exec.exec('git', ['config', 'user.email', 'visual-regression-action@users.noreply.github.com']);
       await exec.exec('git', ['commit', '-m', 'Initialize _ci branch for artifacts']);
       await exec.exec('git', ['push', 'origin', inputs.ciBranchName]);
     }
 
     // Copy images to worktree
     process.chdir(worktreeDir);
-    await exec.exec('git', ['config', 'user.name', 'github-actions[bot]']);
-    await exec.exec('git', ['config', 'user.email', 'github-actions[bot]@users.noreply.github.com']);
+    await exec.exec('git', ['config', 'user.name', 'visual-regression-action']);
+    await exec.exec('git', ['config', 'user.email', 'visual-regression-action@users.noreply.github.com']);
 
     for (const img of images) {
       await fs.copyFile(img.path, path.join(worktreeDir, img.hash));

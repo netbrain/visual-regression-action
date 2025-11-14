@@ -69,8 +69,8 @@ jobs:
       - name: Commit and push changes
         if: steps.playwright.outputs.needs_update == 'true'
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config --local user.email "visual-regression-action@users.noreply.github.com"
+          git config --local user.name "visual-regression-action"
 
           git add Dockerfile
           git commit -m "chore: update Playwright to v${{ steps.playwright.outputs.latest_version }}
