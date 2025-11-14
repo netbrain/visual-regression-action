@@ -78,13 +78,18 @@ async function run(): Promise<void> {
     const screenshotsBaseDir = path.join(process.cwd(), 'screenshots-base');
     await fs.mkdir(screenshotsBaseDir, { recursive: true });
 
+    // Calculate git path relative to repo root
+    const gitRootRelativePath = inputs.workingDirectory === '.'
+      ? inputs.screenshotDirectory
+      : path.join(inputs.workingDirectory, inputs.screenshotDirectory);
+
     let hasBase = false;
     try {
       // Check if screenshots exist in base branch
       await exec.exec('git', ['fetch', 'origin', inputs.baseBranch]);
       const exitCode = await exec.exec('git', [
         'show',
-        `origin/${inputs.baseBranch}:${inputs.screenshotDirectory}/`,
+        `origin/${inputs.baseBranch}:${gitRootRelativePath}/`,
       ], { ignoreReturnCode: true });
 
       if (exitCode === 0) {
