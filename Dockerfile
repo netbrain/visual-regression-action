@@ -27,6 +27,8 @@ RUN npm ci --production
 COPY dist/ ./dist/
 COPY action.yml ./
 
+# Version: 1.4.2
+
 # Set git safe directory (for GitHub Actions)
 RUN git config --global --add safe.directory '*'
 
