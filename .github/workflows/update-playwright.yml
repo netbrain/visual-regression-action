@@ -30,8 +30,8 @@ jobs:
           echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "Latest Playwright version: $LATEST_VERSION"
 
-          # Get digest for latest version
-          LATEST_DIGEST=$(skopeo inspect docker://mcr.microsoft.com/playwright:v${LATEST_VERSION}-noble | jq -r '.Digest')
+          # Get digest for latest version (jammy = Ubuntu 22.04, most compatible)
+          LATEST_DIGEST=$(skopeo inspect docker://mcr.microsoft.com/playwright:v${LATEST_VERSION}-jammy | jq -r '.Digest')
           echo "latest_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
           echo "Latest digest: $LATEST_DIGEST"
 
@@ -61,7 +61,7 @@ jobs:
           LATEST_DIGEST="${{ steps.playwright.outputs.latest_digest }}"
 
           # Update the comment and FROM line in Dockerfile
-          sed -i "s|# Playwright v.*|# Playwright v${LATEST_VERSION}-noble|g" Dockerfile
+          sed -i "s|# Playwright v.*|# Playwright v${LATEST_VERSION}-jammy|g" Dockerfile
           sed -i "s|FROM mcr.microsoft.com/playwright@sha256:.*|FROM mcr.microsoft.com/playwright@${LATEST_DIGEST}|g" Dockerfile
 
           echo "Updated Dockerfile to use Playwright v${LATEST_VERSION} with digest ${LATEST_DIGEST}"

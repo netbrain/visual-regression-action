@@ -37,14 +37,5 @@ updates:
     commit-message:
       prefix: "ci"
 
-  # Keep Docker base images up to date
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "docker"
-    commit-message:
-      prefix: "deps(docker)"
+  # Note: Docker updates are handled by .github/workflows/update-playwright.yml
+  # to ensure version compatibility between npm package and Docker image

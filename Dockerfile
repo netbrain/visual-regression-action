@@ -1,8 +1,9 @@
 # Visual Regression Action Docker Image
 # Pre-built with all dependencies for fast CI execution
 # This image is automatically built and published to GHCR
+# Playwright v1.56.1-jammy
 
-FROM mcr.microsoft.com/playwright@sha256:02810c978d5396bf382ab6015c25ad6bed9e39f4a41c5b9c829e9fea439274e2
+FROM mcr.microsoft.com/playwright@sha256:1e90e61a461441cc3c6970deb61346fe61ad0d44fa8aa6658088c3ac326fa888
 
 # Install additional system dependencies
 RUN apt-get update && apt-get install -y \
