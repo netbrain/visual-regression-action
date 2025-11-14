@@ -1,18 +1,23 @@
 name: 'Visual Regression Testing'
-description: 'Automated Playwright visual regression with screenshot diffs, smart cropping, PR comments, and CI artifact storage'
+description: 'Automated Playwright visual regression with screenshot diffs, smart cropping, and PR comments'
 author: 'Kim Eik'
 branding:
   icon: 'camera'
   color: 'purple'
 
 inputs:
-  github-token:
-    description: 'GitHub token for API access (defaults to GITHUB_TOKEN)'
+  mode:
+    description: 'Mode: "capture" to take screenshots, "compare" to generate diffs and comment'
     required: true
 
+  github-token:
+    description: 'GitHub token for API access (required for compare mode)'
+    required: false
+
   playwright-command:
-    description: 'Command to run Playwright tests (e.g., "npm run test:e2e")'
-    required: true
+    description: 'Command to run Playwright tests (capture mode only)'
+    required: false
+    default: 'npm test'
 
   working-directory:
     description: 'Working directory for the action (where package.json is located)'
@@ -24,28 +29,28 @@ inputs:
     required: false
     default: 'screenshots'
 
-  base-branch:
-    description: 'Base branch to compare against (defaults to PR base branch)'
+  artifact-name:
+    description: 'Name for screenshot artifact (capture mode only)'
     required: false
-    default: 'main'
+    default: 'screenshots'
 
-  commit-screenshots:
-    description: 'Commit updated screenshots back to PR branch (true/false)'
+  base-artifact:
+    description: 'Name of base screenshots artifact (compare mode only)'
     required: false
-    default: 'true'
+    default: 'screenshots-base'
+
+  pr-artifact:
+    description: 'Name of PR screenshots artifact (compare mode only)'
+    required: false
+    default: 'screenshots-pr'
 
   post-comment:
-    description: 'Post visual diff comment on PR (true/false)'
-    required: false
-    default: 'true'
-
-  use-ci-branch:
-    description: 'Use _ci branch for artifact storage (true/false)'
+    description: 'Post visual diff comment on PR (compare mode only)'
     required: false
     default: 'true'
 
   ci-branch-name:
-    description: 'Name of CI artifacts branch'
+    description: 'Name of CI artifacts branch for storing diff images'
     required: false
     default: '_ci'
 
@@ -65,46 +70,41 @@ inputs:
     default: '300'
 
   install-deps:
-    description: 'Install npm dependencies before running tests (true/false)'
+    description: 'Install npm dependencies before running tests (capture mode only)'
     required: false
     default: 'true'
 
   fail-on-changes:
-    description: 'Fail the action if visual changes are detected (true/false)'
+    description: 'Fail the action if visual changes are detected (compare mode only)'
     required: false
     default: 'false'
 
-  amend-commit:
-    description: 'Amend existing commit instead of creating new one (true/false)'
-    required: false
-    default: 'true'
-
 outputs:
-  has-changes:
-    description: 'Whether visual changes were detected (true/false)'
+  screenshot-count:
+    description: 'Number of PNG files found (capture mode)'
+  screenshot-directory:
+    description: 'Absolute path to screenshot directory (capture mode)'
   has-diffs:
-    description: 'Whether visual diffs were generated (true/false)'
-  screenshots-committed:
-    description: 'Whether screenshots were committed to PR (true/false)'
+    description: 'Whether visual diffs were detected (compare mode)'
   comment-posted:
-    description: 'Whether PR comment was posted (true/false)'
+    description: 'Whether PR comment was posted (compare mode)'
 
 runs:
   using: 'docker'
   image: 'docker://ghcr.io/netbrain/visual-regression-action:latest'
   env:
+    INPUT_MODE: ${{ inputs.mode }}
     INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
     INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
     INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
     INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
-    INPUT_BASE_BRANCH: ${{ inputs.base-branch }}
-    INPUT_COMMIT_SCREENSHOTS: ${{ inputs.commit-screenshots }}
+    INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+    INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
+    INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
     INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-    INPUT_USE_CI_BRANCH: ${{ inputs.use-ci-branch }}
     INPUT_CI_BRANCH_NAME: ${{ inputs.ci-branch-name }}
     INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
     INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
     INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
     INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
     INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
-    INPUT_AMEND_COMMIT: ${{ inputs.amend-commit }}

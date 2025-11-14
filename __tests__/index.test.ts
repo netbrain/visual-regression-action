@@ -1,55 +1,32 @@
-// Mock all external dependencies BEFORE imports
-jest.mock('@actions/core');
-jest.mock('@actions/exec');
-jest.mock('@actions/github');
-jest.mock('fs/promises');
-jest.mock('fs');
-
+import { getInputs, runCapture, runCompare } from '../src/index';
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as github from '@actions/github';
 import * as fs from 'fs/promises';
-import { getInputs, run } from '../src/index';
+
+jest.mock('@actions/core');
+jest.mock('@actions/exec');
+jest.mock('@actions/github');
+jest.mock('fs/promises', () => ({
+  readdir: jest.fn(),
+  mkdir: jest.fn(),
+  readFile: jest.fn(),
+  writeFile: jest.fn(),
+  copyFile: jest.fn()
+}));
+jest.mock('fs');
 
 const mockCore = core as jest.Mocked<typeof core>;
 const mockExec = exec as jest.Mocked<typeof exec>;
-const mockFs = fs as any; // Use any to allow setting mock functions
+const mockFs = fs as jest.Mocked<typeof fs>;
 
 describe('Visual Regression Action', () => {
-  let mockContext: any;
-  let mockOctokit: any;
-
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Setup default mock implementations
-    (mockCore.getInput as jest.Mock) = jest.fn((name: string) => {
-      const inputs: Record<string, string> = {
-        'github-token': 'mock-token',
-        'playwright-command': 'npm test',
-        'working-directory': '.',
-        'screenshot-directory': 'screenshots',
-        'base-branch': 'main',
-        'ci-branch-name': '_ci',
-        'diff-threshold': '0.1',
-        'crop-padding': '50',
-        'crop-min-height': '300'
-      };
-      return inputs[name] || '';
-    });
-
-    (mockCore.getBooleanInput as jest.Mock) = jest.fn((name: string) => {
-      const boolInputs: Record<string, boolean> = {
-        'commit-screenshots': true,
-        'post-comment': true,
-        'use-ci-branch': true,
-        'install-deps': false,
-        'fail-on-changes': false,
-        'amend-commit': true
-      };
-      return boolInputs[name] || false;
-    });
-
+    (mockCore.getInput as jest.Mock) = jest.fn();
+    (mockCore.getBooleanInput as jest.Mock) = jest.fn();
     mockCore.setOutput = jest.fn();
     mockCore.setFailed = jest.fn();
     mockCore.warning = jest.fn();
@@ -58,673 +35,370 @@ describe('Visual Regression Action', () => {
     mockCore.endGroup = jest.fn();
 
     (mockExec.exec as jest.Mock) = jest.fn().mockResolvedValue(0);
-
-    // Setup mock context
-    mockContext = {
-      payload: {
-        pull_request: {
-          number: 123,
-          head: { ref: 'feature-branch' },
-          base: { ref: 'main' }
-        }
-      },
-      repo: {
-        owner: 'test-owner',
-        repo: 'test-repo'
-      }
-    };
-
-    // Mock github.context using Object.defineProperty to handle readonly
-    Object.defineProperty(github, 'context', {
-      get: () => mockContext,
-      configurable: true
-    });
-
-    // Setup mock Octokit
-    mockOctokit = {
-      rest: {
-        repos: {
-          getContent: jest.fn(),
-          createOrUpdateFileContents: jest.fn()
-        },
-        issues: {
-          createComment: jest.fn(),
-          listComments: jest.fn().mockResolvedValue({ data: [] }),
-          updateComment: jest.fn()
-        }
-      }
-    };
-
-    (github.getOctokit as jest.Mock) = jest.fn().mockReturnValue(mockOctokit);
-
-    // Setup default fs mocks using the imported mock modules
-    const fsMock = require('fs');
-    fsMock.existsSync.mockReturnValue(false);
-
-    // Setup fs/promises mocks - use mockFs which is the imported 'fs/promises'
-    (mockFs.mkdir as jest.Mock).mockResolvedValue(undefined);
-    (mockFs.readdir as jest.Mock).mockResolvedValue([]);
-    (mockFs.rename as jest.Mock).mockResolvedValue(undefined);
   });
 
   describe('getInputs', () => {
-    it('should parse all required inputs correctly', () => {
-      const inputs = getInputs();
-
-      expect(mockCore.getInput).toHaveBeenCalledWith('github-token', { required: true });
-      expect(mockCore.getInput).toHaveBeenCalledWith('playwright-command', { required: true });
-      expect(inputs.githubToken).toBe('mock-token');
-      expect(inputs.playwrightCommand).toBe('npm test');
-    });
-
-    it('should use default values for optional inputs', () => {
-      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
-        if (name === 'github-token') return 'token';
-        if (name === 'playwright-command') return 'npm test';
-        return '';
-      });
-
-      const inputs = getInputs();
-
-      expect(inputs.workingDirectory).toBe('.');
-      expect(inputs.screenshotDirectory).toBe('screenshots');
-      expect(inputs.ciBranchName).toBe('_ci');
-      expect(inputs.diffThreshold).toBe(0.1);
-      expect(inputs.cropPadding).toBe(50);
-      expect(inputs.cropMinHeight).toBe(300);
-    });
-
-    it('should parse numeric inputs correctly', () => {
+    it('should parse capture mode inputs', () => {
       (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
         const inputs: Record<string, string> = {
-          'github-token': 'token',
-          'playwright-command': 'npm test',
-          'diff-threshold': '0.5',
-          'crop-padding': '100',
-          'crop-min-height': '500'
+          'mode': 'capture',
+          'playwright-command': 'npm run test:visual',
+          'working-directory': './frontend',
+          'screenshot-directory': 'screenshots',
+          'artifact-name': 'screenshots-pr'
         };
         return inputs[name] || '';
       });
 
-      const inputs = getInputs();
-
-      expect(inputs.diffThreshold).toBe(0.5);
-      expect(inputs.cropPadding).toBe(100);
-      expect(inputs.cropMinHeight).toBe(500);
-    });
-  });
-
-  describe('run - validation', () => {
-    it('should warn and return if not running in a PR context', async () => {
-      mockContext.payload.pull_request = undefined;
-
-      await run();
-
-      expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('pull request'));
-    });
-
-    it('should proceed if running in a PR context', async () => {
-      // Mock exec to succeed for all git/playwright commands
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockCore.setFailed).not.toHaveBeenCalledWith(expect.stringContaining('pull request'));
-    });
-  });
-
-  describe('run - dependency installation', () => {
-    it('should install dependencies when install-deps is true', async () => {
       (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
         return name === 'install-deps';
       });
 
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
+      const inputs = getInputs();
 
-      await run();
+      expect(inputs.mode).toBe('capture');
+      if (inputs.mode === 'capture') {
+        expect(inputs.playwrightCommand).toBe('npm run test:visual');
+        expect(inputs.workingDirectory).toBe('./frontend');
+        expect(inputs.screenshotDirectory).toBe('screenshots');
+        expect(inputs.artifactName).toBe('screenshots-pr');
+        expect(inputs.installDeps).toBe(true);
+      }
+    });
+
+    it('should parse compare mode inputs', () => {
+      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
+        const inputs: Record<string, string> = {
+          'mode': 'compare',
+          'github-token': 'test-token',
+          'base-artifact': 'screenshots-base',
+          'pr-artifact': 'screenshots-pr',
+          'ci-branch-name': '_ci',
+          'diff-threshold': '0.1',
+          'crop-padding': '50',
+          'crop-min-height': '300'
+        };
+        return inputs[name] || '';
+      });
+
+      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
+        return name === 'post-comment';
+      });
+
+      const inputs = getInputs();
+
+      expect(inputs.mode).toBe('compare');
+      if (inputs.mode === 'compare') {
+        expect(inputs.githubToken).toBe('test-token');
+        expect(inputs.baseArtifact).toBe('screenshots-base');
+        expect(inputs.prArtifact).toBe('screenshots-pr');
+        expect(inputs.ciBranchName).toBe('_ci');
+        expect(inputs.diffThreshold).toBe(0.1);
+        expect(inputs.cropPadding).toBe(50);
+        expect(inputs.cropMinHeight).toBe(300);
+        expect(inputs.postComment).toBe(true);
+      }
+    });
+
+    it('should use default values when not provided', () => {
+      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
+        return name === 'mode' ? 'capture' : '';
+      });
+
+      (mockCore.getBooleanInput as jest.Mock).mockReturnValue(false);
+
+      const inputs = getInputs();
+
+      expect(inputs.mode).toBe('capture');
+      if (inputs.mode === 'capture') {
+        expect(inputs.playwrightCommand).toBe('npm test');
+        expect(inputs.workingDirectory).toBe('.');
+        expect(inputs.screenshotDirectory).toBe('screenshots');
+        expect(inputs.artifactName).toBe('screenshots');
+      }
+    });
+  });
+
+  describe('runCapture', () => {
+    it('should install dependencies when install-deps is true', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm test',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: true
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock).mockResolvedValue(['test.png', 'test2.png']);
+
+      await runCapture(inputs);
 
       expect(mockExec.exec).toHaveBeenCalledWith('npm', ['ci']);
     });
 
-    it('should skip installation when install-deps is false', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name !== 'install-deps';
-      });
+    it('should skip installing dependencies when install-deps is false', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm test',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: false
+      };
 
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock).mockResolvedValue(['test.png']);
 
-      await run();
+      await runCapture(inputs);
 
       const npmCiCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
         call => call[0] === 'npm' && call[1]?.[0] === 'ci'
       );
       expect(npmCiCalls.length).toBe(0);
     });
-  });
 
-  describe('run - base screenshot fetching', () => {
-    it('should fetch base screenshots from base branch when available', async () => {
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockExec.exec).toHaveBeenCalledWith('git', ['fetch', 'origin', 'main']);
-      expect(mockExec.exec).toHaveBeenCalledWith(
-        'git',
-        expect.arrayContaining(['show', expect.stringContaining('origin/main:screenshots/')]),
-        expect.any(Object)
-      );
-    });
-
-    it('should handle missing base screenshots gracefully', async () => {
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args) => {
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(1); // Simulate missing base
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-      fsMock.existsSync.mockReturnValue(false);
-
-      await run();
-
-      // Should complete without crashing
-      expect(mockCore.setFailed).not.toHaveBeenCalled();
-    });
-
-    it('should continue when base branch does not exist', async () => {
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args) => {
-        if (cmd === 'git' && args?.[0] === 'fetch') {
-          return Promise.resolve(1); // Simulate missing branch
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockCore.setFailed).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('run - Playwright execution', () => {
-    it('should execute the Playwright command', async () => {
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockExec.exec).toHaveBeenCalledWith(
-        'bash',
-        ['-c', 'npm test']
-      );
-    });
-  });
-
-  describe('run - screenshot comparison', () => {
-    it('should compare screenshots using odiff', async () => {
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed (indicates base screenshots exist)
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(0); // exitCode 0 = success
-        }
-        // Mock identify for dimensions
-        if (cmd === 'identify') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(true);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshot files in screenshotDir (line 107)
-        .mockResolvedValueOnce(['test.png']); // New screenshot files in screenshotBaseDirAbs (line 147)
-
-      await run();
-
-      const odiffCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'odiff'
-      );
-      expect(odiffCalls.length).toBeGreaterThan(0);
-    });
-
-    it.skip('should mark files as different when odiff detects changes', async () => {
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(0);
-        }
-        // Mock identify for dimensions
-        if (cmd === 'identify') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
-          return Promise.resolve(0);
-        }
-        // Mock convert for bbox
-        if (cmd === 'convert') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720+0+0'));
-          }
-          return Promise.resolve(0);
-        }
-        // Mock odiff to detect differences
-        if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
-        }
-        return Promise.resolve(0);
-      });
+    it('should run playwright tests', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm run test:visual',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: false
+      };
 
       const fsMock = require('fs');
-      fsMock.existsSync.mockReturnValue(true);
-      (mockFs.readdir as jest.Mock)
-        .mockResolvedValueOnce(['test.png'])  // Base screenshot files
-        .mockResolvedValueOnce(['test.png']); // New screenshot files
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock).mockResolvedValue(['screenshot.png']);
 
-      await run();
+      await runCapture(inputs);
 
-      expect(mockCore.setOutput).toHaveBeenCalledWith('has-diffs', 'true');
+      expect(mockExec.exec).toHaveBeenCalledWith('bash', ['-c', 'npm run test:visual']);
     });
 
-    it('should mark files as identical when odiff finds no changes', async () => {
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir
+    it('should throw error if screenshot directory not found', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm test',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: false
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(false);
+
+      await expect(runCapture(inputs)).rejects.toThrow('Screenshot directory not found');
+    });
+
+    it('should throw error if no PNG files found', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm test',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: false
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock).mockResolvedValue(['readme.txt', 'index.html']);
+
+      await expect(runCapture(inputs)).rejects.toThrow('No .png files found');
+    });
+
+    it('should set output with screenshot count and directory', async () => {
+      const inputs = {
+        mode: 'capture' as const,
+        playwrightCommand: 'npm test',
+        workingDirectory: '.',
+        screenshotDirectory: 'screenshots',
+        artifactName: 'screenshots',
+        installDeps: false
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock).mockResolvedValue(['test1.png', 'test2.png', 'test3.png']);
+
+      await runCapture(inputs);
+
+      expect(mockCore.setOutput).toHaveBeenCalledWith('screenshot-count', '3');
+      expect(mockCore.setOutput).toHaveBeenCalledWith('screenshot-directory', expect.stringContaining('screenshots'));
+    });
+  });
+
+  describe('runCompare', () => {
+    beforeEach(() => {
+      const mockContext = {
+        payload: {
+          pull_request: {
+            number: 123,
+            head: { ref: 'feature' },
+            base: { ref: 'main' }
+          }
+        },
+        repo: { owner: 'test', repo: 'test' }
+      };
+
+      Object.defineProperty(github, 'context', {
+        get: () => mockContext,
+        configurable: true
+      });
+
+      (github.getOctokit as jest.Mock) = jest.fn().mockReturnValue({
+        rest: {
+          issues: {
+            createComment: jest.fn().mockResolvedValue({}),
+            listComments: jest.fn().mockResolvedValue({ data: [] })
+          }
+        }
+      });
+    });
+
+    it('should skip comparison if not in PR context', async () => {
+      Object.defineProperty(github, 'context', {
+        get: () => ({ payload: {} }),
+        configurable: true
+      });
+
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: true,
+        ciBranchName: '_ci',
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: false
+      };
+
+      await runCompare(inputs);
+
+      expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('pull request context'));
+    });
+
+    it('should set has-diffs output to false when no differences found', async () => {
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: true,
+        ciBranchName: '_ci',
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: false
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock)
+        .mockResolvedValueOnce(['test.png']) // base dir
+        .mockResolvedValueOnce(['test.png']); // pr dir
+
+      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        if (cmd === 'identify') {
+          const stdout = options?.listeners?.stdout;
+          if (stdout) stdout(Buffer.from('1280x720'));
+          return Promise.resolve(0);
+        }
+        if (cmd === 'odiff') {
+          return Promise.resolve(0); // No differences
+        }
+        return Promise.resolve(0);
+      });
+
+      await runCompare(inputs);
+
+      expect(mockCore.setOutput).toHaveBeenCalledWith('has-diffs', 'false');
+    });
+
+    it('should detect new screenshots', async () => {
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: true,
+        ciBranchName: '_ci',
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: false
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock)
+        .mockResolvedValueOnce(['old.png']) // base dir
+        .mockResolvedValueOnce(['old.png', 'new.png']); // pr dir
+
+      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        if (cmd === 'identify') {
+          const stdout = options?.listeners?.stdout;
+          if (stdout) stdout(Buffer.from('1280x720'));
+          return Promise.resolve(0);
+        }
+        if (cmd === 'odiff') {
+          return Promise.resolve(0); // No differences
+        }
+        return Promise.resolve(0);
+      });
+
+      await runCompare(inputs);
+
+      expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('New screenshot: new.png'));
+    });
+
+    it('should fail when fail-on-changes is true and diffs found', async () => {
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: false,
+        ciBranchName: '_ci',
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: true
+      };
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock)
         .mockResolvedValueOnce(['test.png'])
         .mockResolvedValueOnce(['test.png']);
 
-      await run();
-
-      // Should complete without marking as different
-      expect(mockCore.setFailed).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('run - bbox parsing', () => {
-    it('should correctly parse bbox with double plus signs', () => {
-      const bbox = '1280x253++0++0';
-      const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
-
-      expect(match).toBeTruthy();
-      expect(match![1]).toBe('1280');
-      expect(match![2]).toBe('253');
-      expect(match![3]).toBe('0');
-      expect(match![4]).toBe('0');
-    });
-
-    it('should correctly parse bbox with single plus signs', () => {
-      const bbox = '1280x253+10+20';
-      const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
-
-      expect(match).toBeTruthy();
-      expect(match![1]).toBe('1280');
-      expect(match![2]).toBe('253');
-      expect(match![3]).toBe('10');
-      expect(match![4]).toBe('20');
-    });
-
-    it('should correctly parse bbox with negative offsets', () => {
-      const bbox = '1280x253+-10+-20';
-      const match = bbox.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
-
-      expect(match).toBeTruthy();
-      expect(match![1]).toBe('1280');
-      expect(match![2]).toBe('253');
-      expect(match![3]).toBe('-10');
-      expect(match![4]).toBe('-20');
-    });
-  });
-
-  describe('run - screenshot cropping', () => {
-    it.skip('should crop screenshots to the changed region', async () => {
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(0);
-        }
-        // Simulate ImageMagick returning bbox
-        if (cmd === 'convert' && args?.includes('-format') && args?.includes('%@')) {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x253++0++0'));
-          }
-        }
-        // Simulate ImageMagick identify for dimensions
         if (cmd === 'identify') {
           const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
-        }
-        // Simulate odiff detecting differences
-        if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs');
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(true);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshots
-        .mockResolvedValueOnce(['test.png']); // New screenshots
-
-      await run();
-
-      const convertCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'convert' && call[1]?.includes('-crop')
-      );
-      expect(convertCalls.length).toBeGreaterThan(0);
-    });
-
-    it.skip('should apply padding to cropped regions', async () => {
-      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
-        const inputs: Record<string, string> = {
-          'github-token': 'token',
-          'playwright-command': 'npm test',
-          'crop-padding': '100'
-        };
-        return inputs[name] || '';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed
-        if (cmd === 'git' && args?.[0] === 'show') {
+          if (stdout) stdout(Buffer.from('1280x720'));
           return Promise.resolve(0);
-        }
-        if (cmd === 'convert' && args?.includes('-format') && args?.includes('%@')) {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x253+0+100'));
-          }
-        }
-        if (cmd === 'identify') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
         }
         if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
+          return Promise.resolve(22); // Differences found
         }
         return Promise.resolve(0);
       });
 
-      const fsMock = require('fs');
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(true);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshots
-        .mockResolvedValueOnce(['test.png']); // New screenshots
-
-      await run();
-
-      // Verify convert was called with crop parameters
-      const cropCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'convert' && call[1]?.includes('-crop')
-      );
-      expect(cropCalls.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('run - screenshot committing', () => {
-    it('should commit screenshots when commit-screenshots is true', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'commit-screenshots';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('M  screenshots/test.png\n'));
-          }
-          return Promise.resolve(0);
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(false);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
-
-      await run();
-
-      const gitCommitCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'git' && call[1]?.[0] === 'commit'
-      );
-      expect(gitCommitCalls.length).toBeGreaterThan(0);
-    });
-
-    it('should skip committing when commit-screenshots is false', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name !== 'commit-screenshots';
-      });
-
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      const gitCommitCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'git' && call[1]?.[0] === 'commit'
-      );
-      expect(gitCommitCalls.length).toBe(0);
-    });
-
-    it('should push screenshots to remote', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'commit-screenshots';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        if (cmd === 'git' && args?.[0] === 'status' && args?.[1] === '--porcelain') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('M  screenshots/test.png\n'));
-          }
-          return Promise.resolve(0);
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(false);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce([]);
-
-      await run();
-
-      const gitPushCalls = (mockExec.exec as jest.Mock).mock.calls.filter(
-        call => call[0] === 'git' && call[1]?.[0] === 'push'
-      );
-      expect(gitPushCalls.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe('run - PR commenting', () => {
-    it.skip('should post a comment when post-comment is true', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'post-comment';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(0);
-        }
-        if (cmd === 'identify') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
-        }
-        if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs');
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(true);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshots
-        .mockResolvedValueOnce(['test.png']); // New screenshots
-
-      await run();
-
-      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalled();
-    });
-
-    it('should skip commenting when post-comment is false', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name !== 'post-comment';
-      });
-
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockOctokit.rest.issues.createComment).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('run - output setting', () => {
-    it('should set all outputs correctly', async () => {
-      (mockExec.exec as jest.Mock).mockResolvedValue(0);
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir.mockResolvedValue([]);
-
-      await run();
-
-      expect(mockCore.setOutput).toHaveBeenCalledWith('has-changes', expect.any(String));
-      expect(mockCore.setOutput).toHaveBeenCalledWith('has-diffs', expect.any(String));
-      expect(mockCore.setOutput).toHaveBeenCalledWith('screenshots-committed', expect.any(String));
-      expect(mockCore.setOutput).toHaveBeenCalledWith('comment-posted', expect.any(String));
-    });
-  });
-
-  describe('run - error handling', () => {
-    it('should set failed status when an error occurs', async () => {
-      (mockExec.exec as jest.Mock).mockRejectedValue(new Error('Test error'));
-
-      await run();
-
-      expect(mockCore.setFailed).toHaveBeenCalledWith(expect.stringContaining('Test error'));
-    });
-
-    it('should handle git errors gracefully', async () => {
-      (mockExec.exec as jest.Mock).mockImplementation((cmd) => {
-        if (cmd === 'git') {
-          return Promise.reject(new Error('Git error'));
-        }
-        return Promise.resolve(0);
-      });
-
-      await run();
-
-      expect(mockCore.setFailed).toHaveBeenCalled();
-    });
-  });
-
-  describe('run - fail-on-changes behavior', () => {
-    it.skip('should fail the action when fail-on-changes is true and diffs are detected', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'fail-on-changes';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
-        // Mock git show to succeed
-        if (cmd === 'git' && args?.[0] === 'show') {
-          return Promise.resolve(0);
-        }
-        if (cmd === 'identify') {
-          const stdout = options?.listeners?.stdout;
-          if (stdout) {
-            stdout(Buffer.from('1280x720'));
-          }
-        }
-        if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs');
-      // Use mockFs instead of fsPromisesMock
-      fsMock.existsSync.mockReturnValue(true);
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])  // Base screenshots
-        .mockResolvedValueOnce(['test.png']); // New screenshots
-
-      await run();
+      await runCompare(inputs);
 
       expect(mockCore.setFailed).toHaveBeenCalledWith('Visual changes detected');
-    });
-
-    it('should not fail when fail-on-changes is false', async () => {
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name !== 'fail-on-changes';
-      });
-
-      (mockExec.exec as jest.Mock).mockImplementation((cmd) => {
-        if (cmd === 'odiff') {
-          return Promise.resolve(22); // odiff returns 22 for differences
-        }
-        return Promise.resolve(0);
-      });
-
-      const fsMock = require('fs'); 
-      // Use mockFs instead of fsPromisesMock
-      mockFs.readdir
-        .mockResolvedValueOnce(['test.png'])
-        .mockResolvedValueOnce(['test.png']);
-
-      await run();
-
-      expect(mockCore.setFailed).not.toHaveBeenCalledWith('Visual changes detected');
-      expect(mockCore.info).toHaveBeenCalledWith(expect.stringContaining('complete'));
     });
   });
 });
