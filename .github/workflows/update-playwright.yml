@@ -66,42 +66,20 @@ jobs:
 
           echo "Updated Dockerfile to use Playwright v${LATEST_VERSION} with digest ${LATEST_DIGEST}"
 
-      - name: Create Pull Request
+      - name: Commit and push changes
         if: steps.playwright.outputs.needs_update == 'true'
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: update Playwright to v${{ steps.playwright.outputs.latest_version }}"
-          branch: update-playwright-${{ steps.playwright.outputs.latest_version }}
-          delete-branch: true
-          title: "chore: Update Playwright to v${{ steps.playwright.outputs.latest_version }}"
-          body: |
-            ## 🎭 Playwright Version Update
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
-            This PR updates the Playwright Docker image to the latest version using content-addressed digests for maximum reproducibility.
+          git add Dockerfile
+          git commit -m "chore: update Playwright to v${{ steps.playwright.outputs.latest_version }}
 
-            **Changes:**
-            - Current version: `v${{ steps.playwright.outputs.current_version }}`
-            - New version: `v${{ steps.playwright.outputs.latest_version }}`
+          Updated Playwright Docker image from v${{ steps.playwright.outputs.current_version }} to v${{ steps.playwright.outputs.latest_version }}
 
-            **Digests:**
-            - Current: `sha256:${{ steps.playwright.outputs.current_digest }}`
-            - New: `${{ steps.playwright.outputs.latest_digest }}`
+          - Old digest: sha256:${{ steps.playwright.outputs.current_digest }}
+          - New digest: ${{ steps.playwright.outputs.latest_digest }}
 
-            **What's included:**
-            - Updated `Dockerfile` to use digest-based image reference
-            - Ensures bit-for-bit reproducible builds
+          Release notes: https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest_version }}"
 
-            **Automated checks:**
-            - ✅ Docker image will be rebuilt automatically
-            - ✅ Visual regression tests will run on this PR
-            - ✅ All workflows will validate the new version
-
-            **Release notes:**
-            See https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest_version }}
-
-            ---
-            *This PR was automatically created by the Update Playwright Version workflow.*
-          labels: |
-            dependencies
-            automation
+          git push origin main
