@@ -2,7 +2,6 @@
 # Pre-built with all dependencies for fast CI execution
 # This image is automatically built and published to GHCR
 
-# Playwright v1.56.1-noble
 FROM mcr.microsoft.com/playwright@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a
 
 # Install additional system dependencies
@@ -22,10 +21,6 @@ WORKDIR /action
 # Copy action files
 COPY package*.json ./
 RUN npm ci --production
-
-# Force cache bust for dist directory
-ARG CACHEBUST=2
-RUN echo "Cache bust: $CACHEBUST"
 
 # Copy action scripts
 COPY dist/ ./dist/
