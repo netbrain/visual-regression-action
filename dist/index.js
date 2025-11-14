@@ -77,6 +77,8 @@ async function run() {
         const prNumber = context.payload.pull_request.number;
         const headRef = context.payload.pull_request.head.ref;
         const octokit = github.getOctokit(inputs.githubToken);
+        // Configure git safe directory for Docker environment
+        await exec.exec('git', ['config', '--global', '--add', 'safe.directory', '/github/workspace']);
         // Change to working directory
         process.chdir(inputs.workingDirectory);
         core.info(`Working directory: ${process.cwd()}`);
