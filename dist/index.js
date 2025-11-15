@@ -216,11 +216,9 @@ async function runCompare(inputs) {
             const bboxMatch = bboxOutput.match(/(\d+)x(\d+)\+?\+?(-?\d+)\+?\+?(-?\d+)/);
             if (bboxMatch) {
                 core.info(`Match result: MATCHED`);
-                const cropWidth = parseInt(bboxMatch[1]);
                 const cropHeight = parseInt(bboxMatch[2]);
-                const cropX = parseInt(bboxMatch[3]);
                 const cropY = parseInt(bboxMatch[4]);
-                // Calculate crop region with padding
+                // Calculate crop region with padding (full width, cropped vertically)
                 const imgDims = await getImageDimensions(newImg);
                 const finalHeight = Math.max(cropHeight + (inputs.cropPadding * 2), inputs.cropMinHeight);
                 const finalY = Math.max(0, cropY - inputs.cropPadding);
