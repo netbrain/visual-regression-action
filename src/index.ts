@@ -153,7 +153,8 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
   }
 
   let hasDiffs = false;
-  const imagesToUpload: { path: string; hash: string; url: string }[] = [];
+  const imagesToUpload: { path: string; hash: string; url: string; isNew?: boolean; isDeleted?: boolean }[] = [];
+  const deletedScreenshots: string[] = [];
 
   // Compare screenshots
   for (const file of prPngs) {
@@ -164,6 +165,18 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
     // If base doesn't exist, it's a new screenshot
     if (!basePngs.includes(file)) {
       core.info(`New screenshot: ${file}`);
+      hasDiffs = true;
+
+      // Upload the new screenshot so it can be viewed in PR
+      const hash = await getFileHash(newImg);
+      const filename = `${hash}.png`;
+
+      imagesToUpload.push({
+        path: newImg,
+        hash: filename,
+        url: '',
+        isNew: true
+      });
       continue;
     }
 
@@ -225,12 +238,10 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
 
       if (bboxMatch) {
         core.info(`Match result: MATCHED`);
-        const cropWidth = parseInt(bboxMatch[1]);
         const cropHeight = parseInt(bboxMatch[2]);
-        const cropX = parseInt(bboxMatch[3]);
         const cropY = parseInt(bboxMatch[4]);
 
-        // Calculate crop region with padding
+        // Calculate crop region with padding (full width, cropped vertically)
         const imgDims = await getImageDimensions(newImg);
         const finalHeight = Math.max(cropHeight + (inputs.cropPadding * 2), inputs.cropMinHeight);
         const finalY = Math.max(0, cropY - inputs.cropPadding);
@@ -294,36 +305,100 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
     }
   }
 
+  // Check for deleted screenshots (exist in base but not in PR)
+  for (const file of basePngs) {
+    if (!prPngs.includes(file)) {
+      core.info(`Deleted screenshot: ${file}`);
+      hasDiffs = true;
+      deletedScreenshots.push(file);
+
+      // Upload the deleted screenshot from base so reviewers can see what was removed
+      const baseImg = path.join(baseDir, file);
+      const hash = await getFileHash(baseImg);
+      const filename = `${hash}.png`;
+
+      imagesToUpload.push({
+        path: baseImg,
+        hash: filename,
+        url: '',
+        isDeleted: true
+      });
+    }
+  }
+
   core.setOutput('has-diffs', hasDiffs.toString());
   core.endGroup();
 
   // Post PR comment if requested
   let commentPosted = false;
-  if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
+  if (inputs.postComment && hasDiffs && (imagesToUpload.length > 0 || deletedScreenshots.length > 0)) {
     core.startGroup('Posting PR comment');
 
-    // Upload images to R2
-    core.info('Uploading diff images to Cloudflare R2...');
-    await uploadToR2(inputs, imagesToUpload);
+    // Upload images to R2 (if any)
+    if (imagesToUpload.length > 0) {
+      core.info('Uploading diff images to Cloudflare R2...');
+      await uploadToR2(inputs, imagesToUpload);
+    }
 
     // Build comment
     let comment = `## 📸 Visual Regression Changes Detected\n\n`;
 
-    for (const img of imagesToUpload) {
-      const basename = path.basename(img.path, '-combined.png');
-      comment += `<details>\n`;
-      comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-      comment += `<div align="center">\n`;
-      comment += `  <table>\n`;
-      comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
-      comment += `  </table>\n`;
-      comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
-      comment += `</div>\n\n`;
-      comment += `</details>\n\n`;
+    // Separate screenshots by type
+    const newScreenshots = imagesToUpload.filter(img => img.isNew);
+    const deletedScreenshotsWithImages = imagesToUpload.filter(img => img.isDeleted);
+    const modifiedScreenshots = imagesToUpload.filter(img => !img.isNew && !img.isDeleted);
+
+    // Show modified screenshots
+    if (modifiedScreenshots.length > 0) {
+      comment += `### 🔄 Modified Screenshots (${modifiedScreenshots.length})\n\n`;
+      for (const img of modifiedScreenshots) {
+        // Handle both .png and .gif extensions
+        const ext = path.extname(img.path);
+        const basename = path.basename(img.path, ext === '.gif' ? '-animated.gif' : '-combined.png');
+
+        comment += `<details>\n`;
+        comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+        comment += `<div align="center">\n`;
+        comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
+        comment += `</div>\n\n`;
+        comment += `</details>\n\n`;
+      }
+    }
+
+    // Show new screenshots
+    if (newScreenshots.length > 0) {
+      comment += `### 🆕 New Screenshots (${newScreenshots.length})\n\n`;
+      comment += `*These screenshots were added in this PR (not present in the base branch)*\n\n`;
+      for (const img of newScreenshots) {
+        const basename = path.basename(img.path, '.png');
+
+        comment += `<details>\n`;
+        comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+        comment += `<div align="center">\n`;
+        comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
+        comment += `</div>\n\n`;
+        comment += `</details>\n\n`;
+      }
+    }
+
+    // Show deleted screenshots
+    if (deletedScreenshotsWithImages.length > 0) {
+      comment += `### 🗑️ Deleted Screenshots (${deletedScreenshotsWithImages.length})\n\n`;
+      comment += `*These screenshots were removed in this PR (present in base branch but not in this PR)*\n\n`;
+      for (const img of deletedScreenshotsWithImages) {
+        const basename = path.basename(img.path, '.png');
+
+        comment += `<details>\n`;
+        comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+        comment += `<div align="center">\n`;
+        comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
+        comment += `</div>\n\n`;
+        comment += `</details>\n\n`;
+      }
     }
 
     comment += `---\n\n`;
-    comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
+    comment += `*Modified images show visual diffs with cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
 
     // Post comment
     try {
