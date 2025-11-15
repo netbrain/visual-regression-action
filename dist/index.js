@@ -146,6 +146,7 @@ async function runCompare(inputs) {
     }
     let hasDiffs = false;
     const imagesToUpload = [];
+    const deletedScreenshots = [];
     // Compare screenshots
     for (const file of prPngs) {
         const baseImg = path.join(baseDir, file);
@@ -154,6 +155,16 @@ async function runCompare(inputs) {
         // If base doesn't exist, it's a new screenshot
         if (!basePngs.includes(file)) {
             core.info(`New screenshot: ${file}`);
+            hasDiffs = true;
+            // Upload the new screenshot so it can be viewed in PR
+            const hash = await getFileHash(newImg);
+            const filename = `${hash}.png`;
+            imagesToUpload.push({
+                path: newImg,
+                hash: filename,
+                url: '',
+                isNew: true
+            });
             continue;
         }
         // Get dimensions
@@ -261,31 +272,68 @@ async function runCompare(inputs) {
             }
         }
     }
+    // Check for deleted screenshots (exist in base but not in PR)
+    for (const file of basePngs) {
+        if (!prPngs.includes(file)) {
+            core.info(`Deleted screenshot: ${file}`);
+            hasDiffs = true;
+            deletedScreenshots.push(file);
+        }
+    }
     core.setOutput('has-diffs', hasDiffs.toString());
     core.endGroup();
     // Post PR comment if requested
     let commentPosted = false;
-    if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
+    if (inputs.postComment && hasDiffs && (imagesToUpload.length > 0 || deletedScreenshots.length > 0)) {
         core.startGroup('Posting PR comment');
-        // Upload images to R2
-        core.info('Uploading diff images to Cloudflare R2...');
-        await uploadToR2(inputs, imagesToUpload);
+        // Upload images to R2 (if any)
+        if (imagesToUpload.length > 0) {
+            core.info('Uploading diff images to Cloudflare R2...');
+            await uploadToR2(inputs, imagesToUpload);
+        }
         // Build comment
         let comment = `## 📸 Visual Regression Changes Detected\n\n`;
-        for (const img of imagesToUpload) {
-            const basename = path.basename(img.path, '-combined.png');
-            comment += `<details>\n`;
-            comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-            comment += `<div align="center">\n`;
-            comment += `  <table>\n`;
-            comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
-            comment += `  </table>\n`;
-            comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
-            comment += `</div>\n\n`;
-            comment += `</details>\n\n`;
+        // Separate new screenshots from modified ones
+        const newScreenshots = imagesToUpload.filter(img => img.isNew);
+        const modifiedScreenshots = imagesToUpload.filter(img => !img.isNew);
+        // Show modified screenshots
+        if (modifiedScreenshots.length > 0) {
+            comment += `### 🔄 Modified Screenshots (${modifiedScreenshots.length})\n\n`;
+            for (const img of modifiedScreenshots) {
+                // Handle both .png and .gif extensions
+                const ext = path.extname(img.path);
+                const basename = path.basename(img.path, ext === '.gif' ? '-animated.gif' : '-combined.png');
+                comment += `<details>\n`;
+                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+                comment += `<div align="center">\n`;
+                comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
+                comment += `</div>\n\n`;
+                comment += `</details>\n\n`;
+            }
+        }
+        // Show new screenshots
+        if (newScreenshots.length > 0) {
+            comment += `### 🆕 New Screenshots (${newScreenshots.length})\n\n`;
+            for (const img of newScreenshots) {
+                const basename = path.basename(img.path, '.png');
+                comment += `<details>\n`;
+                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+                comment += `<div align="center">\n`;
+                comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
+                comment += `</div>\n\n`;
+                comment += `</details>\n\n`;
+            }
+        }
+        // Show deleted screenshots
+        if (deletedScreenshots.length > 0) {
+            comment += `### 🗑️ Deleted Screenshots (${deletedScreenshots.length})\n\n`;
+            for (const filename of deletedScreenshots) {
+                comment += `- \`${filename}\`\n`;
+            }
+            comment += `\n`;
         }
         comment += `---\n\n`;
-        comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
+        comment += `*Modified images show visual diffs with cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
         // Post comment
         try {
             await octokit.rest.issues.createComment({

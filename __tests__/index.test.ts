@@ -359,7 +359,7 @@ describe('Visual Regression Action', () => {
         workingDirectory: '.',
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
-        postComment: true,
+        postComment: false, // Disable comment posting to avoid R2 upload
         r2AccountId: 'test-account-id',
         r2AccessKeyId: 'test-access-key',
         r2SecretAccessKey: 'test-secret',
@@ -379,6 +379,9 @@ describe('Visual Regression Action', () => {
       (mockFs.readdir as jest.Mock)
         .mockResolvedValueOnce(['old.png']) // base dir
         .mockResolvedValueOnce(['old.png', 'new.png']); // pr dir
+
+      // Mock readFile for hash generation of new screenshot
+      (mockFs.readFile as jest.Mock).mockResolvedValue(Buffer.from('fake-image-data'));
 
       (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
         if (cmd === 'identify') {
