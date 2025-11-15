@@ -99,6 +99,21 @@ inputs:
     required: false
     default: ''
 
+  output-format:
+    description: 'Output format for diff images: "side-by-side" or "animated-gif"'
+    required: false
+    default: 'side-by-side'
+
+  gif-frame-delay:
+    description: 'Delay between frames in animated GIF (milliseconds). Only applies when output-format is animated-gif.'
+    required: false
+    default: '1000'
+
+  include-diff-in-output:
+    description: 'Include the diff highlight image in output. When false, animated GIFs show only base → new.'
+    required: false
+    default: 'true'
+
 outputs:
   screenshot-count:
     description: 'Number of PNG files found (capture mode)'
@@ -134,3 +149,6 @@ runs:
     INPUT_R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
     INPUT_R2_BUCKET_NAME: ${{ inputs.r2-bucket-name }}
     INPUT_R2_PUBLIC_URL: ${{ inputs.r2-public-url }}
+    INPUT_OUTPUT_FORMAT: ${{ inputs.output-format }}
+    INPUT_GIF_FRAME_DELAY: ${{ inputs.gif-frame-delay }}
+    INPUT_INCLUDE_DIFF_IN_OUTPUT: ${{ inputs.include-diff-in-output }}

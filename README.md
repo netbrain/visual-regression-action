@@ -148,6 +148,9 @@ Use in the compare job to generate diffs and post PR comments:
     diff-threshold: '0.1'                      # Default: 0.1 (10% tolerance)
     crop-padding: '50'                         # Default: 50px
     crop-min-height: '300'                     # Default: 300px
+    output-format: 'side-by-side'              # Default: 'side-by-side' or 'animated-gif'
+    gif-frame-delay: '1000'                    # Default: 1000ms (only for animated-gif)
+    include-diff-in-output: true               # Default: true (include diff highlight in output)
     working-directory: .                       # Default: '.'
 ```
 
@@ -212,6 +215,43 @@ Use in the compare job to generate diffs and post PR comments:
     working-directory: frontend
     screenshot-directory: e2e/screenshots
     install-deps: false
+```
+
+### Use Animated GIF Output
+
+Create animated GIFs that cycle through base → diff → new instead of side-by-side images:
+
+```yaml
+# In the compare job
+- uses: netbrain/visual-regression-action@v2
+  with:
+    mode: compare
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
+    output-format: 'animated-gif'
+    gif-frame-delay: '1000'  # 1 second per frame
+```
+
+### Exclude Diff Highlight Image
+
+Show only base → new comparison without the diff highlight (works for both side-by-side and animated-gif):
+
+```yaml
+# In the compare job
+- uses: netbrain/visual-regression-action@v2
+  with:
+    mode: compare
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
+    include-diff-in-output: false  # Only show base and new
 ```
 
 ### Skip PR Comments

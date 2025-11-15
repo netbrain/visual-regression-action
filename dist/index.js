@@ -81,7 +81,10 @@ function getInputs() {
             r2AccessKeyId: core.getInput('r2-access-key-id', { required: true }),
             r2SecretAccessKey: core.getInput('r2-secret-access-key', { required: true }),
             r2BucketName: core.getInput('r2-bucket-name', { required: true }),
-            r2PublicUrl: core.getInput('r2-public-url', { required: true })
+            r2PublicUrl: core.getInput('r2-public-url', { required: true }),
+            outputFormat: (core.getInput('output-format') || 'side-by-side'),
+            gifFrameDelay: parseInt(core.getInput('gif-frame-delay')) || 1000,
+            includeDiffInOutput: core.getBooleanInput('include-diff-in-output') !== false
         };
     }
 }
@@ -219,17 +222,41 @@ async function runCompare(inputs) {
                 await exec.exec('convert', [baseImg, '-crop', cropGeometry, '+repage', baseCrop]);
                 await exec.exec('convert', [diffImg, '-crop', cropGeometry, '+repage', diffCrop]);
                 await exec.exec('convert', [newImg, '-crop', cropGeometry, '+repage', newCrop]);
-                // Combine horizontally
-                const combinedImg = path.join(diffsDir, `${path.parse(file).name}-combined.png`);
-                await exec.exec('convert', [baseCrop, diffCrop, newCrop, '+append', combinedImg]);
-                core.info(`Created combined image: ${combinedImg}`);
-                // Prepare for upload to ImgBB (URL will be set after upload)
-                const hash = await getFileHash(combinedImg);
-                const filename = `${hash}.png`;
+                // Create output based on format
+                let outputPath;
+                let outputExt;
+                // Build frame list based on includeDiffInOutput
+                const frames = inputs.includeDiffInOutput
+                    ? [baseCrop, diffCrop, newCrop] // base → diff → new
+                    : [baseCrop, newCrop]; // base → new only
+                if (inputs.outputFormat === 'animated-gif') {
+                    // Create animated GIF
+                    outputPath = path.join(diffsDir, `${path.parse(file).name}-animated.gif`);
+                    outputExt = '.gif';
+                    // Convert milliseconds to centiseconds (ImageMagick delay unit)
+                    const delayCentiseconds = Math.round(inputs.gifFrameDelay / 10);
+                    core.info(`Creating animated GIF with ${inputs.gifFrameDelay}ms delay per frame (${inputs.includeDiffInOutput ? 'base → diff → new' : 'base → new'})`);
+                    await exec.exec('convert', [
+                        '-delay', delayCentiseconds.toString(),
+                        '-loop', '0',
+                        ...frames,
+                        outputPath
+                    ]);
+                }
+                else {
+                    // Combine horizontally (side-by-side)
+                    outputPath = path.join(diffsDir, `${path.parse(file).name}-combined.png`);
+                    outputExt = '.png';
+                    await exec.exec('convert', [...frames, '+append', outputPath]);
+                }
+                core.info(`Created ${inputs.outputFormat} image: ${outputPath}`);
+                // Prepare for upload to R2
+                const hash = await getFileHash(outputPath);
+                const filename = `${hash}${outputExt}`;
                 imagesToUpload.push({
-                    path: combinedImg,
+                    path: outputPath,
                     hash: filename,
-                    url: '' // Will be populated by ImgBB upload
+                    url: '' // Will be populated by R2 upload
                 });
             }
         }
@@ -317,11 +344,13 @@ async function uploadToR2(inputs, images) {
     const results = await Promise.allSettled(images.map(async (img) => {
         const imageData = await fs.readFile(img.path);
         const key = `${img.hash}`;
+        // Determine content type based on file extension
+        const contentType = img.hash.endsWith('.gif') ? 'image/gif' : 'image/png';
         const command = new client_s3_1.PutObjectCommand({
             Bucket: inputs.r2BucketName,
             Key: key,
             Body: imageData,
-            ContentType: 'image/png'
+            ContentType: contentType
         });
         await s3Client.send(command);
         // Update the URL to use R2's public URL
