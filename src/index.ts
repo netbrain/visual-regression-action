@@ -356,22 +356,18 @@ async function uploadToImgBB(
     const imageData = await fs.readFile(img.path);
     const base64Image = imageData.toString('base64');
 
-    const params: Record<string, string> = {
-      key: apiKey,
-      image: base64Image,
-      name: img.hash.replace('.png', '')
-    };
+    const formData = new FormData();
+    formData.append('key', apiKey);
+    formData.append('image', base64Image);
+    formData.append('name', img.hash.replace('.png', ''));
 
     if (expiration) {
-      params.expiration = expiration.toString();
+      formData.append('expiration', expiration.toString());
     }
 
     const response = await fetch('https://api.imgbb.com/1/upload', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams(params)
+      body: formData
     });
 
     if (!response.ok) {
