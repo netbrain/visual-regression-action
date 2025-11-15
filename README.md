@@ -265,11 +265,32 @@ Example usage:
 
 ## Network Access
 
-The action runs in a Docker container. If your Playwright tests need to access services running on the GitHub Actions runner (e.g., `localhost:3000`), use one of these approaches:
+The action runs in a Docker container. If your Playwright tests need to access a web server, use one of these approaches:
 
-### Option 1: Use `host.docker.internal`
+### Option 1: Use Playwright's `webServer` (Recommended)
 
-Update your Playwright tests to use Docker's special DNS name:
+Let Playwright start your server automatically - works in both local and CI environments:
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  webServer: {
+    command: 'npm run preview',  // or 'npm start', 'npm run dev', etc.
+    port: 4321,
+    timeout: 120 * 1000,
+    reuseExistingServer: !process.env.CI,
+  },
+  use: {
+    baseURL: 'http://localhost:4321'
+  }
+});
+```
+
+Playwright will start the server inside the container, so `localhost` works perfectly.
+
+### Option 2: Use `host.docker.internal`
+
+If you start the server outside the action (in a previous workflow step):
 
 ```typescript
 // playwright.config.ts
@@ -282,7 +303,7 @@ export default defineConfig({
 });
 ```
 
-### Option 2: Run app as a Docker service
+### Option 3: Run app as a Docker service
 
 ```yaml
 jobs:
@@ -294,12 +315,8 @@ jobs:
         ports:
           - 3000:3000
     steps:
-      # Playwright can access http://app:3000
+      # Playwright accesses http://app:3000
 ```
-
-### Option 3: Use static sites
-
-For static sites, serve them from the action's working directory - no network access needed.
 
 ## Requirements
 
