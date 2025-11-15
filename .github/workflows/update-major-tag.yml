@@ -1,0 +1,30 @@
+name: Update Major Version Tag
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  update-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Update v1 tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f v1
+          git push origin v1 --force
+
+      - name: Log tag update
+        run: |
+          echo "✅ Updated v1 tag to commit: ${{ github.sha }}"
+          git show v1:action.yml | grep -A 2 "^runs:"
