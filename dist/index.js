@@ -302,45 +302,52 @@ async function getFileHash(filePath) {
     return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
 }
 async function uploadToImgBB(apiKey, images, expiration) {
-    core.info(`Uploading ${images.length} images to ImgBB...`);
+    core.info(`Uploading ${images.length} images to ImgBB in parallel...`);
     if (expiration) {
         core.info(`Images will expire after ${expiration} seconds (${Math.round(expiration / 86400)} days)`);
     }
     else {
         core.info('Images will be stored permanently');
     }
-    for (const img of images) {
-        try {
-            const imageData = await fs.readFile(img.path);
-            const base64Image = imageData.toString('base64');
-            const params = {
-                key: apiKey,
-                image: base64Image,
-                name: img.hash.replace('.png', '')
-            };
-            if (expiration) {
-                params.expiration = expiration.toString();
-            }
-            const response = await fetch('https://api.imgbb.com/1/upload', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams(params)
-            });
-            if (!response.ok) {
-                throw new Error(`ImgBB upload failed: ${response.statusText}`);
-            }
-            const data = await response.json();
-            // Update the URL to use ImgBB's URL
-            img.url = data.data.url;
-            core.info(`✅ Uploaded ${path.basename(img.path)} → ${img.url}`);
+    // Upload all images in parallel, handling failures gracefully
+    const results = await Promise.allSettled(images.map(async (img, index) => {
+        const imageData = await fs.readFile(img.path);
+        const base64Image = imageData.toString('base64');
+        const params = {
+            key: apiKey,
+            image: base64Image,
+            name: img.hash.replace('.png', '')
+        };
+        if (expiration) {
+            params.expiration = expiration.toString();
         }
-        catch (error) {
-            core.warning(`Failed to upload ${img.path} to ImgBB: ${error}`);
-            throw error;
+        const response = await fetch('https://api.imgbb.com/1/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams(params)
+        });
+        if (!response.ok) {
+            throw new Error(`ImgBB upload failed: ${response.statusText}`);
         }
+        const data = await response.json();
+        // Update the URL to use ImgBB's URL
+        img.url = data.data.url;
+        core.info(`✅ Uploaded ${path.basename(img.path)} → ${img.url}`);
+        return { index, img };
+    }));
+    // Check for failures
+    const failures = results.filter(r => r.status === 'rejected');
+    if (failures.length > 0) {
+        failures.forEach((f, i) => {
+            if (f.status === 'rejected') {
+                core.error(`Upload ${i + 1} failed: ${f.reason}`);
+            }
+        });
+        throw new Error(`${failures.length} of ${images.length} uploads failed`);
     }
+    core.info(`Successfully uploaded all ${images.length} images`);
 }
 async function run() {
     try {
