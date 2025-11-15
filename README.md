@@ -263,6 +263,44 @@ Example usage:
     echo "Comment posted: ${{ steps.compare.outputs.comment-posted }}"
 ```
 
+## Network Access
+
+The action runs in a Docker container. If your Playwright tests need to access services running on the GitHub Actions runner (e.g., `localhost:3000`), use one of these approaches:
+
+### Option 1: Use `host.docker.internal`
+
+Update your Playwright tests to use Docker's special DNS name:
+
+```typescript
+// playwright.config.ts
+export default defineConfig({
+  use: {
+    baseURL: process.env.CI
+      ? 'http://host.docker.internal:3000'  // In CI (Docker)
+      : 'http://localhost:3000'              // Local development
+  }
+});
+```
+
+### Option 2: Run app as a Docker service
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      app:
+        image: my-app-image
+        ports:
+          - 3000:3000
+    steps:
+      # Playwright can access http://app:3000
+```
+
+### Option 3: Use static sites
+
+For static sites, serve them from the action's working directory - no network access needed.
+
 ## Requirements
 
 - Playwright tests that save screenshots to a directory
