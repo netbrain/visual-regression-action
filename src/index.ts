@@ -307,16 +307,31 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
     await uploadToR2(inputs, imagesToUpload);
 
     // Build comment
+    const formatLabel = inputs.outputFormat === 'animated-gif' ? 'Animated GIF' : 'Side-by-side';
+    const diffLabel = inputs.includeDiffInOutput ? ' (with diff)' : ' (without diff)';
     let comment = `## 📸 Visual Regression Changes Detected\n\n`;
+    comment += `**Format:** ${formatLabel}${diffLabel}\n\n`;
 
     for (const img of imagesToUpload) {
-      const basename = path.basename(img.path, '-combined.png');
+      // Handle both .png and .gif extensions
+      const ext = path.extname(img.path);
+      const basename = path.basename(img.path, ext === '.gif' ? '-animated.gif' : '-combined.png');
+
       comment += `<details>\n`;
       comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
       comment += `<div align="center">\n`;
-      comment += `  <table>\n`;
-      comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
-      comment += `  </table>\n`;
+
+      // Only show table header for side-by-side format
+      if (inputs.outputFormat === 'side-by-side') {
+        comment += `  <table>\n`;
+        if (inputs.includeDiffInOutput) {
+          comment += `    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>\n`;
+        } else {
+          comment += `    <tr><td><strong>Original</strong></td><td><strong>New</strong></td></tr>\n`;
+        }
+        comment += `  </table>\n`;
+      }
+
       comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
       comment += `</div>\n\n`;
       comment += `</details>\n\n`;
@@ -324,6 +339,9 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
 
     comment += `---\n\n`;
     comment += `*Images show full width with vertical cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
+    if (inputs.outputFormat === 'animated-gif') {
+      comment += `\n*GIF frame delay: ${inputs.gifFrameDelay}ms*`;
+    }
 
     // Post comment
     try {
