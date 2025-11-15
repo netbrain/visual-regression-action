@@ -80,13 +80,15 @@ describe('Visual Regression Action', () => {
           'r2-public-url': 'https://pub-test.r2.dev',
           'diff-threshold': '0.1',
           'crop-padding': '50',
-          'crop-min-height': '300'
+          'crop-min-height': '300',
+          'output-format': 'side-by-side',
+          'gif-frame-delay': '1000'
         };
         return inputs[name] || '';
       });
 
       (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'post-comment';
+        return name === 'post-comment' || name === 'include-diff-in-output';
       });
 
       const inputs = getInputs();
@@ -105,6 +107,9 @@ describe('Visual Regression Action', () => {
         expect(inputs.cropPadding).toBe(50);
         expect(inputs.cropMinHeight).toBe(300);
         expect(inputs.postComment).toBe(true);
+        expect(inputs.outputFormat).toBe('side-by-side');
+        expect(inputs.gifFrameDelay).toBe(1000);
+        expect(inputs.includeDiffInOutput).toBe(true);
       }
     });
 
@@ -288,6 +293,9 @@ describe('Visual Regression Action', () => {
         r2SecretAccessKey: 'test-secret',
         r2BucketName: 'test-bucket',
         r2PublicUrl: 'https://pub-test.r2.dev',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -312,6 +320,9 @@ describe('Visual Regression Action', () => {
         r2SecretAccessKey: 'test-secret',
         r2BucketName: 'test-bucket',
         r2PublicUrl: 'https://pub-test.r2.dev',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -354,6 +365,9 @@ describe('Visual Regression Action', () => {
         r2SecretAccessKey: 'test-secret',
         r2BucketName: 'test-bucket',
         r2PublicUrl: 'https://pub-test.r2.dev',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -396,6 +410,9 @@ describe('Visual Regression Action', () => {
         r2SecretAccessKey: 'test-secret',
         r2BucketName: 'test-bucket',
         r2PublicUrl: 'https://pub-test.r2.dev',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,

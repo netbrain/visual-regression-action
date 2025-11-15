@@ -22,6 +22,9 @@ interface CompareInputs {
     r2SecretAccessKey: string;
     r2BucketName: string;
     r2PublicUrl: string;
+    outputFormat: 'side-by-side' | 'animated-gif';
+    gifFrameDelay: number;
+    includeDiffInOutput: boolean;
 }
 type ActionInputs = CaptureInputs | CompareInputs;
 export declare function getInputs(): ActionInputs;
