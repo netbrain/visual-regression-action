@@ -68,4 +68,8 @@ jobs:
           diff-threshold: '0.1'
           crop-padding: '50'
           crop-min-height: '300'
-          imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+          r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
