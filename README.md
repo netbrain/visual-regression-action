@@ -1,12 +1,10 @@
 # Visual Regression Action
 
-Catch visual bugs in pull requests with automated screenshot comparison and side-by-side diffs.
+Catch visual bugs in pull requests with automated screenshot comparison and visual diffs.
 
 ## What It Does
 
-This GitHub Action captures screenshots from your Playwright tests, compares them between your base branch and PR, and posts a comment showing what changed. No more "looks good to me" reviews when the button moved 5 pixels or the color shifted slightly.
-
-[See it in action →](https://github.com/netbrain/visual-regression-action/pull/15)
+This GitHub Action captures screenshots from your Playwright tests, compares them between your base branch and PR, and posts a comment showing what changed. Supports both side-by-side and animated GIF outputs. No more "looks good to me" reviews when the button moved 5 pixels or the color shifted slightly.
 
 ## Quick Start
 
@@ -43,11 +41,11 @@ jobs:
       matrix:
         branch: [base, pr]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ matrix.branch == 'base' && github.event.pull_request.base.ref || github.head_ref }}
 
-      - uses: netbrain/visual-regression-action@v2
+      - uses: netbrain/visual-regression-action@v1
         with:
           mode: capture
           artifact-name: screenshots-${{ matrix.branch }}
@@ -61,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: capture
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/download-artifact@v4
         with:
@@ -73,7 +71,7 @@ jobs:
           name: screenshots-pr
           path: screenshots-pr
 
-      - uses: netbrain/visual-regression-action@v2
+      - uses: netbrain/visual-regression-action@v1
         with:
           mode: compare
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -101,11 +99,11 @@ jobs:
 ## Key Features
 
 - **Minimal config** - Works with sensible defaults, just specify `mode`
-- **Fast** - Docker image with Playwright, odiff, and ImageMagick
+- **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
 - **Smart cropping** - Shows only the changed regions, not entire pages
 - **Clean storage** - Uses GitHub Actions artifacts for screenshots, Cloudflare R2 for diff images
 - **No repo bloat** - Screenshots aren't committed to your repository
-- **Permanent history** - Diff images stored permanently on R2 for long-term PR reference
+- **Flexible output** - Choose between side-by-side PNGs or animated GIFs
 - **Free tier** - Cloudflare R2 offers 10GB storage free with unlimited egress
 
 ## Configuration
@@ -117,7 +115,7 @@ The action operates in two modes: **capture** and **compare**.
 Use in the matrix capture job to take screenshots:
 
 ```yaml
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: capture                              # Required: 'capture' or 'compare'
     playwright-command: npm test               # Default: 'npm test'
@@ -132,7 +130,7 @@ Use in the matrix capture job to take screenshots:
 Use in the compare job to generate diffs and post PR comments:
 
 ```yaml
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: compare                              # Required: 'capture' or 'compare'
     github-token: ${{ secrets.GITHUB_TOKEN }}  # Required for compare mode
@@ -161,26 +159,51 @@ Use in the compare job to generate diffs and post PR comments:
 3. **Download & compare** - Compare job downloads both artifact sets
 4. **Generate diffs** - Uses odiff to highlight pixel differences
 5. **Smart cropping** - Shows only changed regions with context padding
-6. **Store diffs** - Uploads diff images to Cloudflare R2 (stored permanently)
-7. **Comment on PR** - Posts expandable comparison gallery with side-by-side views
+6. **Store diffs** - Uploads diff images to Cloudflare R2
+7. **Comment on PR** - Posts expandable comparison gallery with visual diffs
 
 ## Example PR Comment
 
+The action posts a comment showing visual changes. The format depends on your configuration:
+
+**Side-by-side format (with diff):**
 ```markdown
 ## 📸 Visual Regression Changes Detected
 
-<details>
-<summary>📄 homepage.png</summary>
-
-| Original | Diff | New |
-|----------|------|-----|
-| [Image showing before/after/diff side-by-side]
-</details>
+**Format:** Side-by-side (with diff)
 
 <details>
-<summary>📄 dashboard.png</summary>
-...
+<summary>📄 <strong>homepage.png</strong> (click to expand)</summary>
+
+<div align="center">
+  <table>
+    <tr><td><strong>Original</strong></td><td><strong>Diff</strong></td><td><strong>New</strong></td></tr>
+  </table>
+  <img src="https://pub-xxxxx.r2.dev/abc123.png" alt="homepage comparison" width="100%">
+</div>
+
 </details>
+```
+
+**Animated GIF format:**
+```markdown
+## 📸 Visual Regression Changes Detected
+
+**Format:** Animated GIF (with diff)
+
+<details>
+<summary>📄 <strong>homepage.png</strong> (click to expand)</summary>
+
+<div align="center">
+  <img src="https://pub-xxxxx.r2.dev/abc123.gif" alt="homepage comparison" width="100%">
+</div>
+
+</details>
+
+---
+
+*Images show full width with vertical cropping to the changed region (50px padding above/below, minimum 300px height).*
+*GIF frame delay: 1000ms*
 ```
 
 ## Common Patterns
@@ -189,7 +212,7 @@ Use in the compare job to generate diffs and post PR comments:
 
 ```yaml
 # In the compare job
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -208,7 +231,7 @@ Use in the compare job to generate diffs and post PR comments:
 - name: Build site
   run: npm run build
 
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: capture
     playwright-command: npm run test:visual
@@ -223,7 +246,7 @@ Create animated GIFs that cycle through base → diff → new instead of side-by
 
 ```yaml
 # In the compare job
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -242,7 +265,7 @@ Show only base → new comparison without the diff highlight (works for both sid
 
 ```yaml
 # In the compare job
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -258,7 +281,7 @@ Show only base → new comparison without the diff highlight (works for both sid
 
 ```yaml
 # In the compare job
-- uses: netbrain/visual-regression-action@v2
+- uses: netbrain/visual-regression-action@v1
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -287,7 +310,7 @@ Example usage:
 ```yaml
 - name: Compare screenshots
   id: compare
-  uses: netbrain/visual-regression-action@v2
+  uses: netbrain/visual-regression-action@v1
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
