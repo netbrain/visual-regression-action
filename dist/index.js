@@ -278,6 +278,16 @@ async function runCompare(inputs) {
             core.info(`Deleted screenshot: ${file}`);
             hasDiffs = true;
             deletedScreenshots.push(file);
+            // Upload the deleted screenshot from base so reviewers can see what was removed
+            const baseImg = path.join(baseDir, file);
+            const hash = await getFileHash(baseImg);
+            const filename = `${hash}.png`;
+            imagesToUpload.push({
+                path: baseImg,
+                hash: filename,
+                url: '',
+                isDeleted: true
+            });
         }
     }
     core.setOutput('has-diffs', hasDiffs.toString());
@@ -293,9 +303,10 @@ async function runCompare(inputs) {
         }
         // Build comment
         let comment = `## 📸 Visual Regression Changes Detected\n\n`;
-        // Separate new screenshots from modified ones
+        // Separate screenshots by type
         const newScreenshots = imagesToUpload.filter(img => img.isNew);
-        const modifiedScreenshots = imagesToUpload.filter(img => !img.isNew);
+        const deletedScreenshotsWithImages = imagesToUpload.filter(img => img.isDeleted);
+        const modifiedScreenshots = imagesToUpload.filter(img => !img.isNew && !img.isDeleted);
         // Show modified screenshots
         if (modifiedScreenshots.length > 0) {
             comment += `### 🔄 Modified Screenshots (${modifiedScreenshots.length})\n\n`;
@@ -314,6 +325,7 @@ async function runCompare(inputs) {
         // Show new screenshots
         if (newScreenshots.length > 0) {
             comment += `### 🆕 New Screenshots (${newScreenshots.length})\n\n`;
+            comment += `*These screenshots were added in this PR (not present in the base branch)*\n\n`;
             for (const img of newScreenshots) {
                 const basename = path.basename(img.path, '.png');
                 comment += `<details>\n`;
@@ -325,12 +337,18 @@ async function runCompare(inputs) {
             }
         }
         // Show deleted screenshots
-        if (deletedScreenshots.length > 0) {
-            comment += `### 🗑️ Deleted Screenshots (${deletedScreenshots.length})\n\n`;
-            for (const filename of deletedScreenshots) {
-                comment += `- \`${filename}\`\n`;
+        if (deletedScreenshotsWithImages.length > 0) {
+            comment += `### 🗑️ Deleted Screenshots (${deletedScreenshotsWithImages.length})\n\n`;
+            comment += `*These screenshots were removed in this PR (present in base branch but not in this PR)*\n\n`;
+            for (const img of deletedScreenshotsWithImages) {
+                const basename = path.basename(img.path, '.png');
+                comment += `<details>\n`;
+                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+                comment += `<div align="center">\n`;
+                comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
+                comment += `</div>\n\n`;
+                comment += `</details>\n\n`;
             }
-            comment += `\n`;
         }
         comment += `---\n\n`;
         comment += `*Modified images show visual diffs with cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
