@@ -77,21 +77,36 @@ jobs:
         with:
           mode: compare
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+          r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
 ```
 
-**3. Get an ImgBB API key** (free at https://api.imgbb.com/) and add it as a repository secret named `IMGBB_API_KEY`.
+**3. Set up Cloudflare R2** for image storage:
+- Create a free Cloudflare account at https://cloudflare.com
+- Go to R2 → Create bucket (e.g., `visual-regression-diffs`)
+- Enable public access on the bucket
+- Create an R2 API token with Read & Write permissions
+- Add these repository secrets:
+  - `R2_ACCOUNT_ID` - Your Cloudflare account ID
+  - `R2_ACCESS_KEY_ID` - R2 access key ID
+  - `R2_SECRET_ACCESS_KEY` - R2 secret access key
+  - `R2_BUCKET_NAME` - Your bucket name
+  - `R2_PUBLIC_URL` - Public bucket URL (e.g., `https://pub-xxxxx.r2.dev`)
 
 **4. Open a PR** - The action will comment with visual diffs.
 
 ## Key Features
 
 - **Minimal config** - Works with sensible defaults, just specify `mode`
-- **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
+- **Fast** - Docker image with Playwright, odiff, and ImageMagick
 - **Smart cropping** - Shows only the changed regions, not entire pages
-- **Clean storage** - Uses GitHub Actions artifacts for screenshots, ImgBB for diff images
+- **Clean storage** - Uses GitHub Actions artifacts for screenshots, Cloudflare R2 for diff images
 - **No repo bloat** - Screenshots aren't committed to your repository
-- **Permanent history** - Diff images stored permanently for long-term PR reference
+- **Permanent history** - Diff images stored permanently on R2 for long-term PR reference
+- **Free tier** - Cloudflare R2 offers 10GB storage free with unlimited egress
 
 ## Configuration
 
@@ -121,8 +136,11 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare                              # Required: 'capture' or 'compare'
     github-token: ${{ secrets.GITHUB_TOKEN }}  # Required for compare mode
-    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}# Required for compare mode
-    imgbb-expiration: ''                       # Optional: seconds (60-15552000), empty = permanent
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}           # Required: Cloudflare R2 account ID
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}     # Required: R2 access key ID
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }} # Required: R2 secret access key
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}         # Required: R2 bucket name
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}           # Required: R2 public URL
     base-artifact: screenshots-base            # Default: 'screenshots-base'
     pr-artifact: screenshots-pr                # Default: 'screenshots-pr'
     post-comment: true                         # Default: true
@@ -140,7 +158,7 @@ Use in the compare job to generate diffs and post PR comments:
 3. **Download & compare** - Compare job downloads both artifact sets
 4. **Generate diffs** - Uses odiff to highlight pixel differences
 5. **Smart cropping** - Shows only changed regions with context padding
-6. **Store diffs** - Uploads diff images to ImgBB (stored permanently)
+6. **Store diffs** - Uploads diff images to Cloudflare R2 (stored permanently)
 7. **Comment on PR** - Posts expandable comparison gallery with side-by-side views
 
 ## Example PR Comment
@@ -172,7 +190,11 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
     fail-on-changes: true
 ```
 
@@ -200,7 +222,11 @@ Use in the compare job to generate diffs and post PR comments:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
     post-comment: false
 ```
 
@@ -225,7 +251,11 @@ Example usage:
   with:
     mode: compare
     github-token: ${{ secrets.GITHUB_TOKEN }}
-    imgbb-api-key: ${{ secrets.IMGBB_API_KEY }}
+    r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+    r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+    r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+    r2-bucket-name: ${{ secrets.R2_BUCKET_NAME }}
+    r2-public-url: ${{ secrets.R2_PUBLIC_URL }}
 
 - name: Check results
   run: |
@@ -236,7 +266,7 @@ Example usage:
 ## Requirements
 
 - Playwright tests that save screenshots to a directory
-- ImgBB API key (free at https://api.imgbb.com/)
+- Cloudflare R2 account with a public bucket (free tier available)
 - `pull-requests: write` permission (for posting PR comments)
 - Node.js project with `package.json` (for capture mode)
 
