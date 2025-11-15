@@ -74,13 +74,28 @@ inputs:
     required: false
     default: 'false'
 
-  imgbb-api-key:
-    description: 'ImgBB API key for image hosting (required for compare mode)'
+  r2-account-id:
+    description: 'Cloudflare R2 Account ID (required for compare mode)'
     required: false
     default: ''
 
-  imgbb-expiration:
-    description: 'Image expiration time in seconds (60-15552000). Leave empty for permanent storage.'
+  r2-access-key-id:
+    description: 'Cloudflare R2 Access Key ID (required for compare mode)'
+    required: false
+    default: ''
+
+  r2-secret-access-key:
+    description: 'Cloudflare R2 Secret Access Key (required for compare mode)'
+    required: false
+    default: ''
+
+  r2-bucket-name:
+    description: 'Cloudflare R2 bucket name (required for compare mode)'
+    required: false
+    default: ''
+
+  r2-public-url:
+    description: 'Cloudflare R2 public bucket URL (e.g., https://pub-xxxxx.r2.dev)'
     required: false
     default: ''
 
@@ -114,5 +129,8 @@ runs:
     INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
     INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
     INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
-    INPUT_IMGBB_API_KEY: ${{ inputs.imgbb-api-key }}
-    INPUT_IMGBB_EXPIRATION: ${{ inputs.imgbb-expiration }}
+    INPUT_R2_ACCOUNT_ID: ${{ inputs.r2-account-id }}
+    INPUT_R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+    INPUT_R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+    INPUT_R2_BUCKET_NAME: ${{ inputs.r2-bucket-name }}
+    INPUT_R2_PUBLIC_URL: ${{ inputs.r2-public-url }}

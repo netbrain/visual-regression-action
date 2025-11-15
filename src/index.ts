@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync } from 'fs';
 import { createHash } from 'crypto';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 interface CaptureInputs {
   mode: 'capture';
@@ -26,8 +27,11 @@ interface CompareInputs {
   cropPadding: number;
   cropMinHeight: number;
   failOnChanges: boolean;
-  imgbbApiKey: string;
-  imgbbExpiration?: number;
+  r2AccountId: string;
+  r2AccessKeyId: string;
+  r2SecretAccessKey: string;
+  r2BucketName: string;
+  r2PublicUrl: string;
 }
 
 type ActionInputs = CaptureInputs | CompareInputs;
@@ -45,10 +49,6 @@ export function getInputs(): ActionInputs {
       installDeps: core.getBooleanInput('install-deps')
     };
   } else {
-    const imgbbApiKey = core.getInput('imgbb-api-key', { required: true });
-    const imgbbExpirationStr = core.getInput('imgbb-expiration');
-    const imgbbExpiration = imgbbExpirationStr ? parseInt(imgbbExpirationStr) : undefined;
-
     return {
       mode: 'compare',
       githubToken: core.getInput('github-token', { required: true }),
@@ -60,8 +60,11 @@ export function getInputs(): ActionInputs {
       cropPadding: parseInt(core.getInput('crop-padding')) || 50,
       cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
       failOnChanges: core.getBooleanInput('fail-on-changes'),
-      imgbbApiKey,
-      imgbbExpiration
+      r2AccountId: core.getInput('r2-account-id', { required: true }),
+      r2AccessKeyId: core.getInput('r2-access-key-id', { required: true }),
+      r2SecretAccessKey: core.getInput('r2-secret-access-key', { required: true }),
+      r2BucketName: core.getInput('r2-bucket-name', { required: true }),
+      r2PublicUrl: core.getInput('r2-public-url', { required: true })
     };
   }
 }
@@ -265,9 +268,9 @@ export async function runCompare(inputs: CompareInputs): Promise<void> {
   if (inputs.postComment && hasDiffs && imagesToUpload.length > 0) {
     core.startGroup('Posting PR comment');
 
-    // Upload images to ImgBB
-    core.info('Uploading diff images to ImgBB...');
-    await uploadToImgBB(inputs.imgbbApiKey, imagesToUpload, inputs.imgbbExpiration);
+    // Upload images to R2
+    core.info('Uploading diff images to Cloudflare R2...');
+    await uploadToR2(inputs, imagesToUpload);
 
     // Build comment
     let comment = `## 📸 Visual Regression Changes Detected\n\n`;
@@ -339,48 +342,41 @@ async function getFileHash(filePath: string): Promise<string> {
   return createHash('sha256').update(content).digest('hex');
 }
 
-async function uploadToImgBB(
-  apiKey: string,
-  images: { path: string; hash: string; url: string }[],
-  expiration?: number
+async function uploadToR2(
+  inputs: CompareInputs,
+  images: { path: string; hash: string; url: string }[]
 ): Promise<void> {
-  core.info(`Uploading ${images.length} images to ImgBB in parallel...`);
-  if (expiration) {
-    core.info(`Images will expire after ${expiration} seconds (${Math.round(expiration / 86400)} days)`);
-  } else {
-    core.info('Images will be stored permanently');
-  }
+  core.info(`Uploading ${images.length} images to Cloudflare R2 in parallel...`);
+
+  // Create S3 client for R2
+  const s3Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${inputs.r2AccountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: inputs.r2AccessKeyId,
+      secretAccessKey: inputs.r2SecretAccessKey
+    }
+  });
 
   // Upload all images in parallel, handling failures gracefully
-  const results = await Promise.allSettled(images.map(async (img, index) => {
+  const results = await Promise.allSettled(images.map(async (img) => {
     const imageData = await fs.readFile(img.path);
-    const base64Image = imageData.toString('base64');
+    const key = `${img.hash}`;
 
-    const formData = new FormData();
-    formData.append('key', apiKey);
-    formData.append('image', base64Image);
-    formData.append('name', img.hash.replace('.png', ''));
-
-    if (expiration) {
-      formData.append('expiration', expiration.toString());
-    }
-
-    const response = await fetch('https://api.imgbb.com/1/upload', {
-      method: 'POST',
-      body: formData
+    const command = new PutObjectCommand({
+      Bucket: inputs.r2BucketName,
+      Key: key,
+      Body: imageData,
+      ContentType: 'image/png'
     });
 
-    if (!response.ok) {
-      throw new Error(`ImgBB upload failed: ${response.statusText}`);
-    }
+    await s3Client.send(command);
 
-    const data = await response.json() as any;
-
-    // Update the URL to use ImgBB's URL
-    img.url = data.data.url;
+    // Update the URL to use R2's public URL
+    img.url = `${inputs.r2PublicUrl}/${key}`;
     core.info(`✅ Uploaded ${path.basename(img.path)} → ${img.url}`);
 
-    return { index, img };
+    return img;
   }));
 
   // Check for failures
@@ -394,7 +390,7 @@ async function uploadToImgBB(
     throw new Error(`${failures.length} of ${images.length} uploads failed`);
   }
 
-  core.info(`Successfully uploaded all ${images.length} images`);
+  core.info(`Successfully uploaded all ${images.length} images to R2`);
 }
 
 export async function run(): Promise<void> {

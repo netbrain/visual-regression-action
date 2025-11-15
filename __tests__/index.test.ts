@@ -73,7 +73,11 @@ describe('Visual Regression Action', () => {
           'github-token': 'test-token',
           'base-artifact': 'screenshots-base',
           'pr-artifact': 'screenshots-pr',
-          'imgbb-api-key': 'test-imgbb-key',
+          'r2-account-id': 'test-account-id',
+          'r2-access-key-id': 'test-access-key',
+          'r2-secret-access-key': 'test-secret',
+          'r2-bucket-name': 'test-bucket',
+          'r2-public-url': 'https://pub-test.r2.dev',
           'diff-threshold': '0.1',
           'crop-padding': '50',
           'crop-min-height': '300'
@@ -92,7 +96,11 @@ describe('Visual Regression Action', () => {
         expect(inputs.githubToken).toBe('test-token');
         expect(inputs.baseArtifact).toBe('screenshots-base');
         expect(inputs.prArtifact).toBe('screenshots-pr');
-        expect(inputs.imgbbApiKey).toBe('test-imgbb-key');
+        expect(inputs.r2AccountId).toBe('test-account-id');
+        expect(inputs.r2AccessKeyId).toBe('test-access-key');
+        expect(inputs.r2SecretAccessKey).toBe('test-secret');
+        expect(inputs.r2BucketName).toBe('test-bucket');
+        expect(inputs.r2PublicUrl).toBe('https://pub-test.r2.dev');
         expect(inputs.diffThreshold).toBe(0.1);
         expect(inputs.cropPadding).toBe(50);
         expect(inputs.cropMinHeight).toBe(300);
@@ -275,7 +283,11 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        imgbbApiKey: 'test-imgbb-key',
+        r2AccountId: 'test-account-id',
+        r2AccessKeyId: 'test-access-key',
+        r2SecretAccessKey: 'test-secret',
+        r2BucketName: 'test-bucket',
+        r2PublicUrl: 'https://pub-test.r2.dev',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -295,7 +307,11 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        imgbbApiKey: 'test-imgbb-key',
+        r2AccountId: 'test-account-id',
+        r2AccessKeyId: 'test-access-key',
+        r2SecretAccessKey: 'test-secret',
+        r2BucketName: 'test-bucket',
+        r2PublicUrl: 'https://pub-test.r2.dev',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -333,7 +349,11 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: true,
-        imgbbApiKey: 'test-imgbb-key',
+        r2AccountId: 'test-account-id',
+        r2AccessKeyId: 'test-access-key',
+        r2SecretAccessKey: 'test-secret',
+        r2BucketName: 'test-bucket',
+        r2PublicUrl: 'https://pub-test.r2.dev',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,
@@ -371,7 +391,11 @@ describe('Visual Regression Action', () => {
         baseArtifact: 'screenshots-base',
         prArtifact: 'screenshots-pr',
         postComment: false,
-        imgbbApiKey: 'test-imgbb-key',
+        r2AccountId: 'test-account-id',
+        r2AccessKeyId: 'test-access-key',
+        r2SecretAccessKey: 'test-secret',
+        r2BucketName: 'test-bucket',
+        r2PublicUrl: 'https://pub-test.r2.dev',
         diffThreshold: 0.1,
         cropPadding: 50,
         cropMinHeight: 300,

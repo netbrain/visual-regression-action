@@ -17,8 +17,11 @@ interface CompareInputs {
     cropPadding: number;
     cropMinHeight: number;
     failOnChanges: boolean;
-    imgbbApiKey: string;
-    imgbbExpiration?: number;
+    r2AccountId: string;
+    r2AccessKeyId: string;
+    r2SecretAccessKey: string;
+    r2BucketName: string;
+    r2PublicUrl: string;
 }
 type ActionInputs = CaptureInputs | CompareInputs;
 export declare function getInputs(): ActionInputs;
