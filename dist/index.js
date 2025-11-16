@@ -96,6 +96,9 @@ async function runCapture(inputs) {
     if (inputs.installDeps) {
         core.info('Installing dependencies...');
         await exec.exec('npm', ['ci']);
+        // Install Playwright browsers matching the package.json version
+        core.info('Installing Playwright browsers...');
+        await exec.exec('npx', ['playwright', 'install', '--with-deps']);
     }
     // Run Playwright tests
     core.info(`Running Playwright tests: ${inputs.playwrightCommand}`);

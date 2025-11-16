@@ -388,6 +388,15 @@ jobs:
 - `pull-requests: write` permission (for posting PR comments)
 - Node.js project with `package.json` (for capture mode)
 
+## Playwright Version Compatibility
+
+The action automatically installs Playwright browsers matching your `package.json` version during the capture phase. This means you can use any Playwright version - the action will detect it and install the correct browsers at runtime.
+
+**How it works:**
+- When `install-deps: true` (default), the action runs `npm ci` followed by `npx playwright install --with-deps`
+- This ensures browsers match your project's Playwright version, regardless of the Docker image version
+- First run downloads browsers (~1-2 minutes), subsequent runs reuse cached browsers
+
 ## License
 
 MIT
