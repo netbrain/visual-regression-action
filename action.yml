@@ -155,32 +155,31 @@ runs:
           npm ci
         fi
 
-    - name: Run visual regression action
+    - name: Run pre-built TypeScript logic
+      id: run-ts-script
       shell: bash
       working-directory: ${{ inputs.working-directory }}
+      run: node ${{ github.action_path }}/dist/index.js
       env:
         INPUT_MODE: ${{ inputs.mode }}
-        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-        INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
-        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-        INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
-        INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
-        INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
-        INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
-        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-        INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
-        INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
-        INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
-        INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
-        INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
-        INPUT_R2_ACCOUNT_ID: ${{ inputs.r2-account-id }}
-        INPUT_R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
-        INPUT_R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
-        INPUT_R2_BUCKET_NAME: ${{ inputs.r2-bucket-name }}
-        INPUT_R2_PUBLIC_URL: ${{ inputs.r2-public-url }}
-        INPUT_OUTPUT_FORMAT: ${{ inputs.output-format }}
-        INPUT_GIF_FRAME_DELAY: ${{ inputs.gif-frame-delay }}
-        INPUT_INCLUDE_DIFF_IN_OUTPUT: ${{ inputs.include-diff-in-output }}
-      run: |
-        # Run the compiled action script
-        node ${{ github.action_path }}/dist/index.js
+        INPUT_GITHUB-TOKEN: ${{ inputs.github-token }}
+        INPUT_PLAYWRIGHT-COMMAND: ${{ inputs.playwright-command }}
+        INPUT_WORKING-DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_SCREENSHOT-DIRECTORY: ${{ inputs.screenshot-directory }}
+        INPUT_ARTIFACT-NAME: ${{ inputs.artifact-name }}
+        INPUT_BASE-ARTIFACT: ${{ inputs.base-artifact }}
+        INPUT_PR-ARTIFACT: ${{ inputs.pr-artifact }}
+        INPUT_POST-COMMENT: ${{ inputs.post-comment }}
+        INPUT_DIFF-THRESHOLD: ${{ inputs.diff-threshold }}
+        INPUT_CROP-PADDING: ${{ inputs.crop-padding }}
+        INPUT_CROP-MIN-HEIGHT: ${{ inputs.crop-min-height }}
+        INPUT_INSTALL-DEPS: ${{ inputs.install-deps }}
+        INPUT_FAIL-ON-CHANGES: ${{ inputs.fail-on-changes }}
+        INPUT_R2-ACCOUNT-ID: ${{ inputs.r2-account-id }}
+        INPUT_R2-ACCESS-KEY-ID: ${{ inputs.r2-access-key-id }}
+        INPUT_R2-SECRET-ACCESS-KEY: ${{ inputs.r2-secret-access-key }}
+        INPUT_R2-BUCKET-NAME: ${{ inputs.r2-bucket-name }}
+        INPUT_R2-PUBLIC-URL: ${{ inputs.r2-public-url }}
+        INPUT_OUTPUT-FORMAT: ${{ inputs.output-format }}
+        INPUT_GIF-FRAME-DELAY: ${{ inputs.gif-frame-delay }}
+        INPUT_INCLUDE-DIFF-IN-OUTPUT: ${{ inputs.include-diff-in-output }}
