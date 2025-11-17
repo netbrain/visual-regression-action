@@ -25,7 +25,7 @@ jobs:
         with:
           mode: capture
           playwright-command: npm test
-          working-directory: example
+          working-directory: .
           screenshot-directory: screenshots
           artifact-name: screenshots-${{ matrix.branch }}
           install-deps: true
@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: screenshots-${{ matrix.branch }}
-          path: example/screenshots/
+          path: screenshots/
           retention-days: 7
 
   compare:
