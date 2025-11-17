@@ -102,17 +102,17 @@ inputs:
   output-format:
     description: 'Output format for diff images: "side-by-side" or "animated-gif"'
     required: false
-    default: 'side-by-side'
+    default: 'animated-gif'
 
   gif-frame-delay:
     description: 'Delay between frames in animated GIF (milliseconds). Only applies when output-format is animated-gif.'
     required: false
-    default: '1000'
+    default: '750'
 
   include-diff-in-output:
     description: 'Include the diff highlight image in output. When false, animated GIFs show only base → new.'
     required: false
-    default: true
+    default: false
 
 outputs:
   screenshot-count:
