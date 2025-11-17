@@ -6,16 +6,9 @@ on:
       - main
     paths:
       - 'src/**'
-      - 'Dockerfile'
       - 'action.yml'
       - 'package.json'
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Build and Push Docker Image"]
-    types:
-      - completed
-    branches:
-      - main
 
 permissions:
   contents: write

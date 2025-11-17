@@ -99,7 +99,7 @@ jobs:
 ## Key Features
 
 - **Minimal config** - Works with sensible defaults, just specify `mode`
-- **Fast** - Pre-built Docker image with Playwright, odiff, and ImageMagick
+- **Fast** - Composite action with automatic Playwright browser installation
 - **Smart cropping** - Shows only the changed regions, not entire pages
 - **Clean storage** - Uses GitHub Actions artifacts for screenshots, Cloudflare R2 for diff images
 - **No repo bloat** - Screenshots aren't committed to your repository
@@ -328,11 +328,7 @@ Example usage:
 
 ## Network Access
 
-The action runs in a Docker container. If your Playwright tests need to access a web server, use one of these approaches:
-
-### Option 1: Use Playwright's `webServer` (Recommended)
-
-Let Playwright start your server automatically - works in both local and CI environments:
+If your Playwright tests need to access a web server, use Playwright's `webServer` configuration:
 
 ```typescript
 // playwright.config.ts
@@ -349,37 +345,7 @@ export default defineConfig({
 });
 ```
 
-Playwright will start the server inside the container, so `localhost` works perfectly.
-
-### Option 2: Use `host.docker.internal`
-
-If you start the server outside the action (in a previous workflow step):
-
-```typescript
-// playwright.config.ts
-export default defineConfig({
-  use: {
-    baseURL: process.env.CI
-      ? 'http://host.docker.internal:3000'  // In CI (Docker)
-      : 'http://localhost:3000'              // Local development
-  }
-});
-```
-
-### Option 3: Run app as a Docker service
-
-```yaml
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    services:
-      app:
-        image: my-app-image
-        ports:
-          - 3000:3000
-    steps:
-      # Playwright accesses http://app:3000
-```
+Playwright will start your server automatically, and `localhost` works in both local and CI environments.
 
 ## Requirements
 
@@ -394,7 +360,7 @@ The action automatically installs Playwright browsers matching your `package.jso
 
 **How it works:**
 - When `install-deps: true` (default), the action runs `npm ci` followed by `npx playwright install --with-deps`
-- This ensures browsers match your project's Playwright version, regardless of the Docker image version
+- This ensures browsers match your project's Playwright version
 - First run downloads browsers (~1-2 minutes), subsequent runs reuse cached browsers
 
 ## License

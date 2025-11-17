@@ -36,6 +36,3 @@ updates:
       - "github-actions"
     commit-message:
       prefix: "ci"
-
-  # Note: Docker updates are handled by .github/workflows/update-playwright.yml
-  # to ensure version compatibility between npm package and Docker image
