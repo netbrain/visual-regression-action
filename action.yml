@@ -47,7 +47,7 @@ inputs:
   post-comment:
     description: 'Post visual diff comment on PR (compare mode only)'
     required: false
-    default: 'true'
+    default: true
 
   diff-threshold:
     description: 'Odiff threshold for pixel differences (0.0-1.0, default 0.1 = 10%)'
@@ -67,12 +67,12 @@ inputs:
   install-deps:
     description: 'Install npm dependencies before running tests (capture mode only)'
     required: false
-    default: 'true'
+    default: true
 
   fail-on-changes:
     description: 'Fail the action if visual changes are detected (compare mode only)'
     required: false
-    default: 'false'
+    default: false
 
   r2-account-id:
     description: 'Cloudflare R2 Account ID (required for compare mode)'
@@ -112,7 +112,7 @@ inputs:
   include-diff-in-output:
     description: 'Include the diff highlight image in output. When false, animated GIFs show only base → new.'
     required: false
-    default: 'false'
+    default: false
 
 outputs:
   screenshot-count:
