@@ -3,6 +3,8 @@ name: Visual Regression Testing
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    branches:
+      - main  # Only run on PRs targeting main branch
 
 permissions:
   pull-requests: write

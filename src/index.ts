@@ -39,6 +39,13 @@ interface CompareInputs {
 
 type ActionInputs = CaptureInputs | CompareInputs;
 
+// Helper function to parse boolean inputs more leniently
+function parseBooleanInput(name: string, defaultValue: boolean = false): boolean {
+  const value = core.getInput(name);
+  if (!value) return defaultValue;
+  return value.toLowerCase() === 'true';
+}
+
 export function getInputs(): ActionInputs {
   const mode = core.getInput('mode', { required: true }) as 'capture' | 'compare';
 
@@ -49,20 +56,20 @@ export function getInputs(): ActionInputs {
       workingDirectory: core.getInput('working-directory') || '.',
       screenshotDirectory: core.getInput('screenshot-directory') || 'screenshots',
       artifactName: core.getInput('artifact-name') || 'screenshots',
-      installDeps: core.getBooleanInput('install-deps')
+      installDeps: parseBooleanInput('install-deps', true)
     };
   } else {
     return {
       mode: 'compare',
-      githubToken: core.getInput('github-token', { required: true }),
+      githubToken: core.getInput('github-token'),
       workingDirectory: core.getInput('working-directory') || '.',
       baseArtifact: core.getInput('base-artifact') || 'screenshots-base',
       prArtifact: core.getInput('pr-artifact') || 'screenshots-pr',
-      postComment: core.getBooleanInput('post-comment'),
+      postComment: parseBooleanInput('post-comment', true),
       diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
       cropPadding: parseInt(core.getInput('crop-padding')) || 50,
       cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
-      failOnChanges: core.getBooleanInput('fail-on-changes'),
+      failOnChanges: parseBooleanInput('fail-on-changes', false),
       r2AccountId: core.getInput('r2-account-id', { required: true }),
       r2AccessKeyId: core.getInput('r2-access-key-id', { required: true }),
       r2SecretAccessKey: core.getInput('r2-secret-access-key', { required: true }),
@@ -70,7 +77,7 @@ export function getInputs(): ActionInputs {
       r2PublicUrl: core.getInput('r2-public-url', { required: true }),
       outputFormat: (core.getInput('output-format') || 'side-by-side') as 'side-by-side' | 'animated-gif',
       gifFrameDelay: parseInt(core.getInput('gif-frame-delay')) || 1000,
-      includeDiffInOutput: core.getBooleanInput('include-diff-in-output') !== false
+      includeDiffInOutput: parseBooleanInput('include-diff-in-output', false)
     };
   }
 }
