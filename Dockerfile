@@ -3,7 +3,7 @@
 # This image is automatically built and published to GHCR
 # Playwright v1.56.1-jammy
 
-FROM mcr.microsoft.com/playwright@sha256:1e90e61a461441cc3c6970deb61346fe61ad0d44fa8aa6658088c3ac326fa888
+FROM mcr.microsoft.com/playwright@sha256:d518367161e599b64e4e8b83ff180be45bfe22efb78dde77fc4c2942340fe8ca
 
 # Install additional system dependencies
 RUN apt-get update && apt-get install -y \
