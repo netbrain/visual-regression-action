@@ -75,7 +75,7 @@ function getInputs() {
     else {
         return {
             mode: 'compare',
-            githubToken: core.getInput('github-token', { required: true }),
+            githubToken: core.getInput('github-token'),
             workingDirectory: core.getInput('working-directory') || '.',
             baseArtifact: core.getInput('base-artifact') || 'screenshots-base',
             prArtifact: core.getInput('pr-artifact') || 'screenshots-pr',
