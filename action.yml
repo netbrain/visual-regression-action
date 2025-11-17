@@ -152,7 +152,7 @@ runs:
       run: |
         # Install the action's own dependencies if not already installed
         if [ ! -d "node_modules" ]; then
-          npm ci --production
+          npm ci
         fi
 
     - name: Run visual regression action
@@ -167,7 +167,7 @@ runs:
         INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
         INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
         INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
-        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+        INPUT_POST_COMMENT: ${{ in${{ inputs.install-deps }}puts.post-comment }}
         INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
         INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
         INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
