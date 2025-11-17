@@ -167,7 +167,7 @@ runs:
         INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
         INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
         INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
-        INPUT_POST_COMMENT: ${{ puts.post-comment }}
+        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
         INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
         INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
         INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
