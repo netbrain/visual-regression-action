@@ -53,6 +53,13 @@ const path = __importStar(__nccwpck_require__(6928));
 const fs_1 = __nccwpck_require__(9896);
 const crypto_1 = __nccwpck_require__(6982);
 const client_s3_1 = __nccwpck_require__(3711);
+// Helper function to parse boolean inputs more leniently
+function parseBooleanInput(name, defaultValue = false) {
+    const value = core.getInput(name);
+    if (!value)
+        return defaultValue;
+    return value.toLowerCase() === 'true';
+}
 function getInputs() {
     const mode = core.getInput('mode', { required: true });
     if (mode === 'capture') {
@@ -62,7 +69,7 @@ function getInputs() {
             workingDirectory: core.getInput('working-directory') || '.',
             screenshotDirectory: core.getInput('screenshot-directory') || 'screenshots',
             artifactName: core.getInput('artifact-name') || 'screenshots',
-            installDeps: core.getBooleanInput('install-deps')
+            installDeps: parseBooleanInput('install-deps', true)
         };
     }
     else {
@@ -72,11 +79,11 @@ function getInputs() {
             workingDirectory: core.getInput('working-directory') || '.',
             baseArtifact: core.getInput('base-artifact') || 'screenshots-base',
             prArtifact: core.getInput('pr-artifact') || 'screenshots-pr',
-            postComment: core.getBooleanInput('post-comment'),
+            postComment: parseBooleanInput('post-comment', true),
             diffThreshold: parseFloat(core.getInput('diff-threshold')) || 0.1,
             cropPadding: parseInt(core.getInput('crop-padding')) || 50,
             cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
-            failOnChanges: core.getBooleanInput('fail-on-changes'),
+            failOnChanges: parseBooleanInput('fail-on-changes', false),
             r2AccountId: core.getInput('r2-account-id', { required: true }),
             r2AccessKeyId: core.getInput('r2-access-key-id', { required: true }),
             r2SecretAccessKey: core.getInput('r2-secret-access-key', { required: true }),
@@ -84,7 +91,7 @@ function getInputs() {
             r2PublicUrl: core.getInput('r2-public-url', { required: true }),
             outputFormat: (core.getInput('output-format') || 'side-by-side'),
             gifFrameDelay: parseInt(core.getInput('gif-frame-delay')) || 1000,
-            includeDiffInOutput: core.getBooleanInput('include-diff-in-output') !== false
+            includeDiffInOutput: parseBooleanInput('include-diff-in-output', false)
         };
     }
 }
