@@ -127,28 +127,60 @@ outputs:
     description: 'Absolute path to directory containing diff images (compare mode)'
 
 runs:
-  using: 'docker'
-  image: 'docker://ghcr.io/netbrain/visual-regression-action:latest'
-  env:
-    INPUT_MODE: ${{ inputs.mode }}
-    INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-    INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
-    INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
-    INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
-    INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
-    INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
-    INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
-    INPUT_POST_COMMENT: ${{ inputs.post-comment }}
-    INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
-    INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
-    INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
-    INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
-    INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
-    INPUT_R2_ACCOUNT_ID: ${{ inputs.r2-account-id }}
-    INPUT_R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
-    INPUT_R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
-    INPUT_R2_BUCKET_NAME: ${{ inputs.r2-bucket-name }}
-    INPUT_R2_PUBLIC_URL: ${{ inputs.r2-public-url }}
-    INPUT_OUTPUT_FORMAT: ${{ inputs.output-format }}
-    INPUT_GIF_FRAME_DELAY: ${{ inputs.gif-frame-delay }}
-    INPUT_INCLUDE_DIFF_IN_OUTPUT: ${{ inputs.include-diff-in-output }}
+  using: 'composite'
+  steps:
+    - name: Install system dependencies
+      shell: bash
+      run: |
+        # Install imagemagick, jq, curl, git (if not already present)
+        if ! command -v convert &> /dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y imagemagick git curl jq
+        fi
+
+    - name: Install odiff
+      shell: bash
+      run: |
+        # Install odiff globally if not already installed
+        if ! command -v odiff &> /dev/null; then
+          npm install -g odiff-bin@4.1.1
+        fi
+
+    - name: Install action dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        # Install the action's own dependencies if not already installed
+        if [ ! -d "node_modules" ]; then
+          npm ci --production
+        fi
+
+    - name: Run visual regression action
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_PLAYWRIGHT_COMMAND: ${{ inputs.playwright-command }}
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_SCREENSHOT_DIRECTORY: ${{ inputs.screenshot-directory }}
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact-name }}
+        INPUT_BASE_ARTIFACT: ${{ inputs.base-artifact }}
+        INPUT_PR_ARTIFACT: ${{ inputs.pr-artifact }}
+        INPUT_POST_COMMENT: ${{ inputs.post-comment }}
+        INPUT_DIFF_THRESHOLD: ${{ inputs.diff-threshold }}
+        INPUT_CROP_PADDING: ${{ inputs.crop-padding }}
+        INPUT_CROP_MIN_HEIGHT: ${{ inputs.crop-min-height }}
+        INPUT_INSTALL_DEPS: ${{ inputs.install-deps }}
+        INPUT_FAIL_ON_CHANGES: ${{ inputs.fail-on-changes }}
+        INPUT_R2_ACCOUNT_ID: ${{ inputs.r2-account-id }}
+        INPUT_R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
+        INPUT_R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        INPUT_R2_BUCKET_NAME: ${{ inputs.r2-bucket-name }}
+        INPUT_R2_PUBLIC_URL: ${{ inputs.r2-public-url }}
+        INPUT_OUTPUT_FORMAT: ${{ inputs.output-format }}
+        INPUT_GIF_FRAME_DELAY: ${{ inputs.gif-frame-delay }}
+        INPUT_INCLUDE_DIFF_IN_OUTPUT: ${{ inputs.include-diff-in-output }}
+      run: |
+        # Run the compiled action script
+        node ${{ github.action_path }}/dist/index.js
