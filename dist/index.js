@@ -404,7 +404,7 @@ async function getFileHash(filePath) {
     return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
 }
 async function uploadToR2(inputs, images) {
-    core.info(`Uploading ${images.length} images to Cloudflare R2 in parallel...`);
+    core.info(`Uploading ${images.length} images to Cloudflare R2...`);
     // Create S3 client for R2
     const s3Client = new client_s3_1.S3Client({
         region: 'auto',
@@ -414,12 +414,27 @@ async function uploadToR2(inputs, images) {
             secretAccessKey: inputs.r2SecretAccessKey
         }
     });
-    // Upload all images in parallel, handling failures gracefully
-    const results = await Promise.allSettled(images.map(async (img) => {
-        const imageData = await fs.readFile(img.path);
-        const key = `${img.hash}`;
+    // Group images by hash to deduplicate uploads
+    const imagesByHash = new Map();
+    for (const img of images) {
+        if (!imagesByHash.has(img.hash)) {
+            imagesByHash.set(img.hash, []);
+        }
+        imagesByHash.get(img.hash).push(img);
+    }
+    const uniqueHashes = imagesByHash.size;
+    const duplicateCount = images.length - uniqueHashes;
+    if (duplicateCount > 0) {
+        core.info(`Found ${duplicateCount} duplicate(s). Uploading ${uniqueHashes} unique image(s) instead of ${images.length}.`);
+    }
+    // Upload only unique hashes in parallel
+    const results = await Promise.allSettled(Array.from(imagesByHash.entries()).map(async ([hash, imgs]) => {
+        // Upload the first image with this hash
+        const firstImg = imgs[0];
+        const imageData = await fs.readFile(firstImg.path);
+        const key = `${hash}`;
         // Determine content type based on file extension
-        const contentType = img.hash.endsWith('.gif') ? 'image/gif' : 'image/png';
+        const contentType = hash.endsWith('.gif') ? 'image/gif' : 'image/png';
         const command = new client_s3_1.PutObjectCommand({
             Bucket: inputs.r2BucketName,
             Key: key,
@@ -427,10 +442,17 @@ async function uploadToR2(inputs, images) {
             ContentType: contentType
         });
         await s3Client.send(command);
-        // Update the URL to use R2's public URL
-        img.url = `${inputs.r2PublicUrl}/${key}`;
-        core.info(`✅ Uploaded ${path.basename(img.path)} → ${img.url}`);
-        return img;
+        // Update URL for all images sharing this hash
+        const url = `${inputs.r2PublicUrl}/${key}`;
+        for (const img of imgs) {
+            img.url = url;
+        }
+        const fileNames = imgs.map(img => path.basename(img.path)).join(', ');
+        core.info(`✅ Uploaded ${hash} → ${url}`);
+        if (imgs.length > 1) {
+            core.info(`   Shared by ${imgs.length} files: ${fileNames}`);
+        }
+        return hash;
     }));
     // Check for failures
     const failures = results.filter(r => r.status === 'rejected');
@@ -440,9 +462,9 @@ async function uploadToR2(inputs, images) {
                 core.error(`Upload ${i + 1} failed: ${f.reason}`);
             }
         });
-        throw new Error(`${failures.length} of ${images.length} uploads failed`);
+        throw new Error(`${failures.length} of ${uniqueHashes} uploads failed`);
     }
-    core.info(`Successfully uploaded all ${images.length} images to R2`);
+    core.info(`Successfully uploaded ${uniqueHashes} unique image(s) to R2 (${images.length} total references)`);
 }
 async function run() {
     try {
