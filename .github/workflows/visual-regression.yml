@@ -17,7 +17,7 @@ jobs:
         branch: [base, pr]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ matrix.branch == 'base' && github.event.pull_request.base.ref || github.head_ref }}
           fetch-depth: 1
@@ -44,7 +44,7 @@ jobs:
     needs: capture
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download base screenshots
         uses: actions/download-artifact@v6
