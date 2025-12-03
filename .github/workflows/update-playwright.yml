@@ -17,12 +17,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install skopeo
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y skopeo
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
 
-      - name: Get latest Playwright version and digest
+      - name: Get latest Playwright version
         id: playwright
         run: |
           # Get latest Playwright version from npm
@@ -30,41 +30,26 @@ jobs:
           echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "Latest Playwright version: $LATEST_VERSION"
 
-          # Get digest for latest version (jammy = Ubuntu 22.04, most compatible)
-          LATEST_DIGEST=$(skopeo inspect docker://mcr.microsoft.com/playwright:v${LATEST_VERSION}-jammy | jq -r '.Digest')
-          echo "latest_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
-          echo "Latest digest: $LATEST_DIGEST"
-
-          # Get current digest from Dockerfile
-          CURRENT_DIGEST=$(grep -oP 'mcr.microsoft.com/playwright@sha256:\K[a-f0-9]{64}' Dockerfile || echo "none")
-          echo "current_digest=$CURRENT_DIGEST" >> $GITHUB_OUTPUT
-          echo "Current digest: $CURRENT_DIGEST"
-
-          # Get current version from comment
-          CURRENT_VERSION=$(grep -oP '# Playwright v\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile || echo "unknown")
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').devDependencies.playwright" | sed 's/^[^0-9]*//')
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
           echo "Current version: $CURRENT_VERSION"
 
-          # Check if update is needed (compare digests)
-          if [ "$CURRENT_DIGEST" != "${LATEST_DIGEST#sha256:}" ]; then
+          # Check if update is needed
+          if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
-            echo "Update needed: $CURRENT_VERSION ($CURRENT_DIGEST) -> $LATEST_VERSION (${LATEST_DIGEST#sha256:})"
+            echo "Update needed: $CURRENT_VERSION -> $LATEST_VERSION"
           else
             echo "needs_update=false" >> $GITHUB_OUTPUT
             echo "Already on latest version"
           fi
 
-      - name: Update Dockerfile
+      - name: Update package.json
         if: steps.playwright.outputs.needs_update == 'true'
         run: |
           LATEST_VERSION="${{ steps.playwright.outputs.latest_version }}"
-          LATEST_DIGEST="${{ steps.playwright.outputs.latest_digest }}"
-
-          # Update the comment and FROM line in Dockerfile
-          sed -i "s|# Playwright v.*|# Playwright v${LATEST_VERSION}-jammy|g" Dockerfile
-          sed -i "s|FROM mcr.microsoft.com/playwright@sha256:.*|FROM mcr.microsoft.com/playwright@${LATEST_DIGEST}|g" Dockerfile
-
-          echo "Updated Dockerfile to use Playwright v${LATEST_VERSION} with digest ${LATEST_DIGEST}"
+          npm install --save-dev playwright@${LATEST_VERSION}
+          echo "Updated package.json to use Playwright v${LATEST_VERSION}"
 
       - name: Commit and push changes
         if: steps.playwright.outputs.needs_update == 'true'
@@ -72,13 +57,10 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-          git add Dockerfile
+          git add package.json package-lock.json
           git commit -m "chore: update Playwright to v${{ steps.playwright.outputs.latest_version }}
 
-          Updated Playwright Docker image from v${{ steps.playwright.outputs.current_version }} to v${{ steps.playwright.outputs.latest_version }}
-
-          - Old digest: sha256:${{ steps.playwright.outputs.current_digest }}
-          - New digest: ${{ steps.playwright.outputs.latest_digest }}
+          Updated Playwright from v${{ steps.playwright.outputs.current_version }} to v${{ steps.playwright.outputs.latest_version }}
 
           Release notes: https://github.com/microsoft/playwright/releases/tag/v${{ steps.playwright.outputs.latest_version }}"
 
