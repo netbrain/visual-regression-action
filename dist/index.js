@@ -208,6 +208,11 @@ async function runCompare(inputs) {
                 '--threshold', inputs.diffThreshold.toString(),
                 '--antialiasing'
             ], { ignoreReturnCode: true });
+            // Check if diff mask was created (odiff with --diff-mask skips output if images are identical after antialiasing)
+            if (!(0, fs_1.existsSync)(diffMask)) {
+                core.info(`Images are identical after antialiasing for ${file} - skipping diff processing`);
+                continue;
+            }
             // Get bounding box
             let bboxOutput = '';
             await exec.exec('convert', [
