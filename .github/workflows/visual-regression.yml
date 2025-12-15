@@ -47,13 +47,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download base screenshots
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: screenshots-base
           path: screenshots-base
 
       - name: Download PR screenshots
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: screenshots-pr
           path: screenshots-pr
