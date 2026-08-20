@@ -75,22 +75,22 @@ inputs:
     default: false
 
   r2-account-id:
-    description: 'Cloudflare R2 Account ID (required for compare mode)'
+    description: 'Cloudflare R2 Account ID (optional; when unset, compare mode skips image upload and comments without images)'
     required: false
     default: ''
 
   r2-access-key-id:
-    description: 'Cloudflare R2 Access Key ID (required for compare mode)'
+    description: 'Cloudflare R2 Access Key ID (optional, see r2-account-id)'
     required: false
     default: ''
 
   r2-secret-access-key:
-    description: 'Cloudflare R2 Secret Access Key (required for compare mode)'
+    description: 'Cloudflare R2 Secret Access Key (optional, see r2-account-id)'
     required: false
     default: ''
 
   r2-bucket-name:
-    description: 'Cloudflare R2 bucket name (required for compare mode)'
+    description: 'Cloudflare R2 bucket name (optional, see r2-account-id)'
     required: false
     default: ''
 

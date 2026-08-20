@@ -7,6 +7,13 @@ import * as fs from 'fs/promises';
 jest.mock('@actions/core');
 jest.mock('@actions/exec');
 jest.mock('@actions/github');
+const mockS3Send = jest.fn();
+jest.mock('@aws-sdk/client-s3', () => ({
+  S3Client: jest.fn().mockImplementation(() => ({
+    send: (...args: unknown[]) => mockS3Send(...args)
+  })),
+  PutObjectCommand: jest.fn().mockImplementation((input) => input)
+}));
 jest.mock('fs/promises', () => ({
   readdir: jest.fn(),
   mkdir: jest.fn(),
@@ -82,13 +89,12 @@ describe('Visual Regression Action', () => {
           'crop-padding': '50',
           'crop-min-height': '300',
           'output-format': 'side-by-side',
-          'gif-frame-delay': '1000'
+          'gif-frame-delay': '1000',
+          // booleans are read via getInput (parseBooleanInput), not getBooleanInput
+          'post-comment': 'true',
+          'include-diff-in-output': 'true'
         };
         return inputs[name] || '';
-      });
-
-      (mockCore.getBooleanInput as jest.Mock).mockImplementation((name: string) => {
-        return name === 'post-comment' || name === 'include-diff-in-output';
       });
 
       const inputs = getInputs();
@@ -443,6 +449,128 @@ describe('Visual Regression Action', () => {
       await runCompare(inputs);
 
       expect(mockCore.setFailed).toHaveBeenCalledWith('Visual changes detected');
+    });
+
+    it('should post comment without images when R2 is not configured', async () => {
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: true,
+        r2AccountId: '',
+        r2AccessKeyId: '',
+        r2SecretAccessKey: '',
+        r2BucketName: '',
+        r2PublicUrl: '',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: false
+      };
+
+      const createComment = jest.fn().mockResolvedValue({});
+      (github.getOctokit as jest.Mock) = jest.fn().mockReturnValue({
+        rest: { issues: { createComment } }
+      });
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock)
+        .mockResolvedValueOnce(['old.png']) // base dir
+        .mockResolvedValueOnce(['old.png', 'new.png']); // pr dir
+      (mockFs.readFile as jest.Mock).mockResolvedValue(Buffer.from('fake-image-data'));
+
+      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        if (cmd === 'identify') {
+          options?.listeners?.stdout?.(Buffer.from('1280x720'));
+          return Promise.resolve(0);
+        }
+        return Promise.resolve(0); // odiff: no differences for old.png
+      });
+
+      await runCompare(inputs);
+
+      expect(mockS3Send).not.toHaveBeenCalled();
+      expect(mockCore.setFailed).not.toHaveBeenCalled();
+      expect(createComment).toHaveBeenCalledTimes(1);
+      const body = createComment.mock.calls[0][0].body as string;
+      expect(body).toContain('diff image not available');
+      expect(body).not.toContain('<img src=""');
+    });
+
+    it('should not fail the job when R2 upload fails', async () => {
+      const inputs = {
+        mode: 'compare' as const,
+        githubToken: 'test-token',
+        workingDirectory: '.',
+        baseArtifact: 'screenshots-base',
+        prArtifact: 'screenshots-pr',
+        postComment: true,
+        r2AccountId: 'test-account-id',
+        r2AccessKeyId: 'test-access-key',
+        r2SecretAccessKey: 'test-secret',
+        r2BucketName: 'test-bucket',
+        r2PublicUrl: 'https://pub-test.r2.dev',
+        outputFormat: 'side-by-side' as const,
+        gifFrameDelay: 1000,
+        includeDiffInOutput: true,
+        diffThreshold: 0.1,
+        cropPadding: 50,
+        cropMinHeight: 300,
+        failOnChanges: false
+      };
+
+      const createComment = jest.fn().mockResolvedValue({});
+      (github.getOctokit as jest.Mock) = jest.fn().mockReturnValue({
+        rest: { issues: { createComment } }
+      });
+
+      mockS3Send.mockRejectedValue(new Error('SSL alert number 40'));
+
+      const fsMock = require('fs');
+      fsMock.existsSync = jest.fn().mockReturnValue(true);
+      (mockFs.readdir as jest.Mock)
+        .mockResolvedValueOnce(['old.png'])
+        .mockResolvedValueOnce(['old.png', 'new.png']);
+      (mockFs.readFile as jest.Mock).mockResolvedValue(Buffer.from('fake-image-data'));
+
+      (mockExec.exec as jest.Mock).mockImplementation((cmd, args, options) => {
+        if (cmd === 'identify') {
+          options?.listeners?.stdout?.(Buffer.from('1280x720'));
+          return Promise.resolve(0);
+        }
+        return Promise.resolve(0);
+      });
+
+      await runCompare(inputs);
+
+      expect(mockCore.setFailed).not.toHaveBeenCalled();
+      expect(mockCore.warning).toHaveBeenCalledWith(expect.stringContaining('R2 upload failed'));
+      expect(createComment).toHaveBeenCalledTimes(1);
+      const body = createComment.mock.calls[0][0].body as string;
+      expect(body).toContain('diff image not available');
+    });
+  });
+
+  describe('getInputs R2 optionality', () => {
+    it('should accept missing R2 inputs in compare mode', () => {
+      (mockCore.getInput as jest.Mock).mockImplementation((name: string) => {
+        const values: Record<string, string> = { mode: 'compare', 'github-token': 'test-token' };
+        return values[name] || '';
+      });
+
+      const inputs = getInputs();
+
+      expect(inputs.mode).toBe('compare');
+      if (inputs.mode === 'compare') {
+        expect(inputs.r2AccountId).toBe('');
+        expect(inputs.r2PublicUrl).toBe('');
+      }
     });
   });
 });

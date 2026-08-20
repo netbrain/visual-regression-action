@@ -84,11 +84,14 @@ function getInputs() {
             cropPadding: parseInt(core.getInput('crop-padding')) || 50,
             cropMinHeight: parseInt(core.getInput('crop-min-height')) || 300,
             failOnChanges: parseBooleanInput('fail-on-changes', false),
-            r2AccountId: core.getInput('r2-account-id', { required: true }),
-            r2AccessKeyId: core.getInput('r2-access-key-id', { required: true }),
-            r2SecretAccessKey: core.getInput('r2-secret-access-key', { required: true }),
-            r2BucketName: core.getInput('r2-bucket-name', { required: true }),
-            r2PublicUrl: core.getInput('r2-public-url', { required: true }),
+            // R2 config is optional: without it the comparison still runs and the PR
+            // comment is posted without hosted images (e.g. dependabot-triggered
+            // runs, which don't receive the repository's Actions secrets).
+            r2AccountId: core.getInput('r2-account-id'),
+            r2AccessKeyId: core.getInput('r2-access-key-id'),
+            r2SecretAccessKey: core.getInput('r2-secret-access-key'),
+            r2BucketName: core.getInput('r2-bucket-name'),
+            r2PublicUrl: core.getInput('r2-public-url'),
             outputFormat: (core.getInput('output-format') || 'side-by-side'),
             gifFrameDelay: parseInt(core.getInput('gif-frame-delay')) || 1000,
             includeDiffInOutput: parseBooleanInput('include-diff-in-output', false)
@@ -309,10 +312,24 @@ async function runCompare(inputs) {
     let commentPosted = false;
     if (inputs.postComment && hasDiffs && (imagesToUpload.length > 0 || deletedScreenshots.length > 0)) {
         core.startGroup('Posting PR comment');
-        // Upload images to R2 (if any)
+        // Upload images to R2 when configured. Upload problems must not fail the
+        // job: the comparison verdict is already computed and image hosting is
+        // auxiliary, so degrade to a comment without images instead.
+        let imagesAvailable = false;
         if (imagesToUpload.length > 0) {
-            core.info('Uploading diff images to Cloudflare R2...');
-            await uploadToR2(inputs, imagesToUpload);
+            if (hasR2Config(inputs)) {
+                try {
+                    core.info('Uploading diff images to Cloudflare R2...');
+                    await uploadToR2(inputs, imagesToUpload);
+                    imagesAvailable = true;
+                }
+                catch (error) {
+                    core.warning(`R2 upload failed - posting comment without images: ${error}`);
+                }
+            }
+            else {
+                core.info('R2 not configured - posting comment without hosted images');
+            }
         }
         // Build comment
         let comment = `## 📸 Visual Regression Changes Detected\n\n`;
@@ -327,12 +344,7 @@ async function runCompare(inputs) {
                 // Handle both .png and .gif extensions
                 const ext = path.extname(img.path);
                 const basename = path.basename(img.path, ext === '.gif' ? '-animated.gif' : '-combined.png');
-                comment += `<details>\n`;
-                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-                comment += `<div align="center">\n`;
-                comment += `  <img src="${img.url}" alt="${basename} comparison" width="100%">\n`;
-                comment += `</div>\n\n`;
-                comment += `</details>\n\n`;
+                comment += renderScreenshotEntry(img, basename, `${basename} comparison`);
             }
         }
         // Show new screenshots
@@ -341,12 +353,7 @@ async function runCompare(inputs) {
             comment += `*These screenshots were added in this PR (not present in the base branch)*\n\n`;
             for (const img of newScreenshots) {
                 const basename = path.basename(img.path, '.png');
-                comment += `<details>\n`;
-                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-                comment += `<div align="center">\n`;
-                comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
-                comment += `</div>\n\n`;
-                comment += `</details>\n\n`;
+                comment += renderScreenshotEntry(img, basename, basename);
             }
         }
         // Show deleted screenshots
@@ -355,15 +362,13 @@ async function runCompare(inputs) {
             comment += `*These screenshots were removed in this PR (present in base branch but not in this PR)*\n\n`;
             for (const img of deletedScreenshotsWithImages) {
                 const basename = path.basename(img.path, '.png');
-                comment += `<details>\n`;
-                comment += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
-                comment += `<div align="center">\n`;
-                comment += `  <img src="${img.url}" alt="${basename}" width="100%">\n`;
-                comment += `</div>\n\n`;
-                comment += `</details>\n\n`;
+                comment += renderScreenshotEntry(img, basename, basename);
             }
         }
         comment += `---\n\n`;
+        if (imagesToUpload.length > 0 && !imagesAvailable) {
+            comment += `*Diff images are not available for this run (R2 upload not configured or failed). Run the visual test suite locally to inspect the changes.*\n\n`;
+        }
         comment += `*Modified images show visual diffs with cropping to the changed region (${inputs.cropPadding}px padding above/below, minimum ${inputs.cropMinHeight}px height).*`;
         // Post comment
         try {
@@ -407,6 +412,30 @@ async function getImageDimensions(imagePath) {
 async function getFileHash(filePath) {
     const content = await fs.readFile(filePath);
     return (0, crypto_1.createHash)('sha256').update(content).digest('hex');
+}
+// hasR2Config reports whether all R2 inputs are present. Partial config is
+// treated as absent: a wrong endpoint fails slower and noisier than no upload.
+function hasR2Config(inputs) {
+    return Boolean(inputs.r2AccountId &&
+        inputs.r2AccessKeyId &&
+        inputs.r2SecretAccessKey &&
+        inputs.r2BucketName &&
+        inputs.r2PublicUrl);
+}
+// renderScreenshotEntry renders one screenshot section of the PR comment.
+// Entries without a hosted URL (upload skipped or failed) degrade to a plain
+// listing instead of a broken <img> tag.
+function renderScreenshotEntry(img, basename, alt) {
+    if (!img.url) {
+        return `- 📄 **${basename}.png** *(diff image not available)*\n`;
+    }
+    let entry = `<details>\n`;
+    entry += `<summary>📄 <strong>${basename}.png</strong> (click to expand)</summary>\n\n`;
+    entry += `<div align="center">\n`;
+    entry += `  <img src="${img.url}" alt="${alt}" width="100%">\n`;
+    entry += `</div>\n\n`;
+    entry += `</details>\n\n`;
+    return entry;
 }
 async function uploadToR2(inputs, images) {
     core.info(`Uploading ${images.length} images to Cloudflare R2...`);
